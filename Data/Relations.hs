@@ -1,27 +1,53 @@
 module Data.Relations where
 
-import Data.Set ( Set, union, isSubsetOf, toAscList )
-import Data.List (intercalate)
+import Data.List (intercalate,sort,nub)
+
+-- Attributes --
 
 newtype Attribute = Attr { str :: String } deriving (Ord, Eq)
+
 instance Show Attribute where
     show = str
 
-type Schema = Set Attribute
+-- Schema --
 
-data FunctionalDependency = To (Set Attribute) (Set Attribute)
+type Schema = [Attribute]
+
+verifySchema :: Schema -> Bool
+verifySchema x = length x == length (nub x)
+
+-- Functional Dependencies --
+
+data FunctionalDependency = To [Attribute] [Attribute]
+
 instance Show FunctionalDependency where
     show (To l r) = display l ++ "->" ++ display r
         where
-            display :: Set Attribute -> String
-            display s = intercalate "," (map str $ toAscList s)
+            display :: [Attribute] -> String
+            display s = intercalate "," (map str $ sort s)
 
-type Basis = Set FunctionalDependency
+-- Covers --
 
-data Relation = Rel Schema Basis
+type Cover = [FunctionalDependency]
 
-verify :: Relation -> Bool
-verify (Rel schema fds) = all (check schema) fds
+isBasis :: Cover -> Bool
+isBasis = all rhs1
+    where
+        rhs1 :: FunctionalDependency -> Bool
+        rhs1 (To l r) = length r == 1
+
+-- Relations --
+
+data Relation = Rel Schema Cover
+
+verifyRelation :: Relation -> Bool
+verifyRelation (Rel schema fds) = verifySchema schema && all (check schema) fds
     where
         check :: Schema -> FunctionalDependency -> Bool
-        check schema (To lhs rhs) = (lhs `union` rhs) `isSubsetOf` schema
+        check schema (To lhs rhs) = all (`elem` schema) (lhs ++ rhs)
+
+instance Show Relation where
+    show (Rel s c) = show s ++ ": " ++ display c
+        where
+            wrap x = "(" ++ x ++ ")"
+            display c = wrap (intercalate "|" (map show c))
