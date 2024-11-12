@@ -1,0 +1,7 @@
+R(A,B,C,D,E,F) -- DBS Exam 1 Q3 (double dash will be ignored by the parser)
+A->B,C
+D->E,F
+
+R2(A,B,C,D,E,F) -- DBS Exam 1 Q4
+A,B->C
+F->B

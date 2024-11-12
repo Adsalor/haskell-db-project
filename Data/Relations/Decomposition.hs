@@ -1,15 +1,20 @@
 module Data.Relations.Decomposition where
-import Data.Relations {Relation, Attribute, Cover, Schema}
-    
+import Data.Relations ( Relation, Attribute, Cover, Schema )
+
 -- Decompose a relation to a list of relations following
--- third normal form
-decompose3NF :: Relation -> [Relation]
-decompose3nf = undefined
+-- second normal form
+decompose2NF :: Relation -> [Relation]
+decompose2NF = undefined
 
 -- Decompose a relation to a list of relations following
 -- third normal form
+decompose3NF :: Relation -> [Relation]
+decompose3NF = undefined
+
+-- Decompose a relation to a list of relations following
+-- Boyce-Codd normal form
 decomposeBCNF :: Relation -> [Relation]
-decomposeBcnf = undefined
+decomposeBCNF = undefined
 
 -- Takes an original relation and a decomposition of the relation and
 -- checks if the decomposition is lossless
