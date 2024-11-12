@@ -1,5 +1,9 @@
 module Data.Relations.Dependencies where
-import Data.Relations
+import Data.Relations ( Relation, Cover, FunctionalDependency (To), Attribute )
+
+-- check whether a functional dependency is trivial
+isTrivial :: FunctionalDependency -> Bool
+isTrivial (To lhs rhs) = all (`elem` lhs) rhs
 
 -- Compute the closure of a set of attributes within a given list
 attrClosure :: Relation -> [Attribute] -> [Attribute]
