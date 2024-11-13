@@ -32,4 +32,6 @@ isDependencyPreserving = undefined
 projectDependencies :: Cover -> Schema -> Relation
 projectDependencies = undefined
 
-
+-- Project FDs from a relation onto a set of schemas.
+projectRelation :: Relation -> [Schema] -> [Relation]
+projectRelation = undefined
