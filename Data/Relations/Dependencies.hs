@@ -1,7 +1,13 @@
 module Data.Relations.Dependencies where
 
-import Data.Relations ( Relation (Rel), Cover, FunctionalDependency (To), Attribute )
+import Data.Relations ( Relation (Rel), Cover, FunctionalDependency (To), Attribute, leftSide, rightSide )
 import Data.Set qualified as S
+
+splitFD :: FunctionalDependency -> S.Set FunctionalDependency
+splitFD (To lhs rhs) = S.map (To lhs . S.singleton) rhs
+
+toBasis :: Cover -> Cover
+toBasis fds = S.unions (S.map splitFD fds)
 
 -- check whether a functional dependency is trivial
 isTrivial :: FunctionalDependency -> Bool
@@ -28,23 +34,29 @@ isSuperkey rel@(Rel sch fds) attrs = attrClosure rel attrs == sch
 
 -- check if an attribute set is a key
 isKey :: Relation -> S.Set Attribute -> Bool
-isKey = undefined
+isKey rel attrs = isSuperkey rel attrs && not (any (isSuperkey rel . flip S.delete attrs) attrs)
 
 -- get all keys of a relation
-keysOf :: Relation -> [S.Set Attribute]
-keysOf = undefined
+keysOf :: Relation -> S.Set (S.Set Attribute)
+keysOf (Rel sch fds) = 
+    let requiredKeyAttrs = S.difference sch (S.unions (S.map rightSide fds))  
+    in undefined
 
 -- Compute the closure of a set of FDs
 fdClosure :: Relation -> Cover
-fdClosure = undefined
+fdClosure r@(Rel sch fds) = S.map (\s -> To s (attrClosure r s)) (S.powerSet sch)
 
 -- check if a specific FD is implied by a cover
 inClosure :: Cover -> FunctionalDependency -> Bool
-inClosure = undefined
+inClosure fds (To lhs rhs) = rhs `S.isSubsetOf` recAttrClosure fds lhs
 
 -- check if a set of FDs is in minimal form or not
 isMinimal :: Cover -> Bool
-isMinimal = undefined
+isMinimal fds = let
+    basis = toBasis fds
+    allNeeded = not (any (\fd -> inClosure (S.delete fd basis) fd) basis)
+    allLHSNeeded = undefined
+    in allNeeded && allLHSNeeded
 
 -- Compute the minimal basis of an FD cover
 -- minimize's output should always satisfy isBasis and isMinimal
