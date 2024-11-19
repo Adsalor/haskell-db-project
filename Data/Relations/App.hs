@@ -5,24 +5,52 @@ import Data.Relations.Decomposition
 import Data.Relations.Normalization
 import Text.Parsec
 import Text.Parsec.String
+import Text.Parsec.Token
+import Text.Parsec.Language (emptyDef)
+import Data.Set qualified as S
+import Data.Char (isAlphaNum)
+import Control.Monad (void)
 
 -- Parsing
 
+lexer = makeTokenParser $ emptyDef {
+    commentLine = "--",
+    identStart = alphaNum,
+    identLetter = alphaNum
+}
+ident :: Parser String
+ident  = identifier lexer
+sym :: String -> Parser String
+sym = symbol lexer
+wsp :: Parser ()
+wsp = whiteSpace lexer
+
 name :: Parser (String,Schema)
-name = undefined
+name = do
+    rel <- ident
+    sym "("
+    attrs <- ident `sepBy1` sym ","
+    sym ")"
+    many (void newline <|> wsp)
+    return (rel,S.fromList (map Attr attrs))
 
 fd :: Parser FunctionalDependency
-fd = undefined
+fd = do
+    lhs <- ident `sepBy1` sym ","
+    sym "->"
+    rhs <- ident `sepBy1` sym ","
+    many (void newline <|> wsp)
+    return $ S.fromList (map Attr lhs) `To` S.fromList (map Attr rhs)
 
 relation :: Parser (String,Relation)
 relation = do
     (id,sch) <- name
-    fds <- many fd
-    return (id,Rel sch fds)
+    fds <- many (try fd)
+    return (id,Rel sch (S.fromList fds))
 
 fileParser :: Parser [(String,Relation)]
 fileParser = do
-    x <- many1 relation 
+    x <- many1 relation
     eof
     return x
 

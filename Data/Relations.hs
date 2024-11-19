@@ -52,7 +52,7 @@ verifyRelation (Rel schema fds) = all (check schema) fds
         check schema (To lhs rhs) = S.union lhs rhs `S.isSubsetOf` schema
 
 instance Show Relation where
-    show (Rel s c) = show s ++ ": " ++ display c
+    show (Rel s c) = show (S.toAscList s) ++ ": " ++ display c
         where
             wrap x = "(" ++ x ++ ")"
-            display c = wrap (intercalate "|" (map show $ S.toAscList c))
+            display c = wrap (intercalate " | " (map show $ S.toAscList c))

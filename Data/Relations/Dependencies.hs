@@ -54,12 +54,18 @@ inClosure fds (To lhs rhs) = rhs `S.isSubsetOf` recAttrClosure fds lhs
 isMinimal :: Cover -> Bool
 isMinimal fds = let
     basis = toBasis fds
-    allNeeded = not (any (\fd -> inClosure (S.delete fd basis) fd) basis)
-    allLHSNeeded = undefined
+    allNeeded = not $ any (\fd -> inClosure (S.delete fd basis) fd) basis
+    allLHSNeeded = all (lhsNeeded basis) basis
+        where
+            lhsNeeded :: Cover -> FunctionalDependency -> Bool
+            lhsNeeded fds (To lhs rhs) = not $ any (\a -> inClosure fds (To (S.delete a lhs) rhs)) lhs
     in allNeeded && allLHSNeeded
 
 -- Compute the minimal basis of an FD cover
 -- minimize's output should always satisfy isBasis and isMinimal
 minimize :: Cover -> Cover
-minimize = undefined
-
+minimize fds = let
+    basis = toBasis fds
+    purgeTrivial = undefined
+    purgeTrivialLHS = undefined
+    in purgeTrivialLHS
