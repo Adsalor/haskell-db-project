@@ -29,7 +29,9 @@ instance Show FunctionalDependency where
     show (To l r) = display l ++ "->" ++ display r
         where
             display :: S.Set Attribute -> String
-            display s = intercalate "," (map str $ S.toAscList s)
+            display s
+              | all ((== 1) . length . str) s = str =<< S.toAscList s
+              | otherwise = intercalate "," (map str $ S.toAscList s)
 
 -- Covers --
 

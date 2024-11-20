@@ -36,13 +36,24 @@ isSuperkey rel@(Rel sch fds) attrs = attrClosure rel attrs == sch
 isKey :: Relation -> S.Set Attribute -> Bool
 isKey rel attrs = isSuperkey rel attrs && not (any (isSuperkey rel . flip S.delete attrs) attrs)
 
+recFindKeys :: Relation -> [S.Set Attribute] -> S.Set (S.Set Attribute) -> S.Set (S.Set Attribute)
+recFindKeys _ [] s = s
+recFindKeys rel@(Rel sch _) (el:fringe) keys
+  | any (`S.isSubsetOf` el) keys = recFindKeys rel fringe keys
+  | isSuperkey rel el = recFindKeys rel fringe (S.insert el keys)
+  | otherwise = let unused = S.difference sch el
+                    candidates = map (`S.insert` el) (S.toAscList unused)
+                in recFindKeys rel (fringe ++ candidates) keys
+
 -- get all keys of a relation
 keysOf :: Relation -> S.Set (S.Set Attribute)
-keysOf (Rel sch fds) = 
-    let requiredKeyAttrs = S.difference sch (S.unions (S.map rightSide fds))  
-    in undefined
+keysOf r@(Rel sch fds) =
+    let requiredKeyAttrs = S.difference sch $ S.unions (S.map rightSide fds)
+    in recFindKeys r [requiredKeyAttrs] S.empty
 
 -- Compute the closure of a set of FDs
+-- note that this is provided in absolutely maximal form
+-- and should not be used in practice unless strictly necessary
 fdClosure :: Relation -> Cover
 fdClosure r@(Rel sch fds) = S.map (\s -> To s (attrClosure r s)) (S.powerSet sch)
 
