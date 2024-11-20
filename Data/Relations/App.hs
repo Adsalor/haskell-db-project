@@ -8,8 +8,6 @@ import Text.Parsec.String
 import Text.Parsec.Token
 import Text.Parsec.Language (emptyDef)
 import Data.Set qualified as S
-import Data.Char (isAlphaNum)
-import Control.Monad (void)
 
 -- Parsing
 
@@ -31,7 +29,7 @@ name = do
     sym "("
     attrs <- ident `sepBy1` sym ","
     sym ")"
-    many (void newline <|> wsp)
+    wsp
     return (rel,S.fromList (map Attr attrs))
 
 fd :: Parser FunctionalDependency
@@ -39,7 +37,7 @@ fd = do
     lhs <- ident `sepBy1` sym ","
     sym "->"
     rhs <- ident `sepBy1` sym ","
-    many (void newline <|> wsp)
+    wsp
     return $ S.fromList (map Attr lhs) `To` S.fromList (map Attr rhs)
 
 relation :: Parser (String,Relation)
@@ -53,6 +51,10 @@ fileParser = do
     x <- many1 relation
     eof
     return x
+
+-- temporary parsing utility
+extract :: Parser a -> String -> a
+extract p s = either (error . show) id $ parse p "" s
 
 -- for the actual app: we intend to make a state monad to pass named relation environment
 -- so we can go for a REPL-style loop
