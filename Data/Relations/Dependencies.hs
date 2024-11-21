@@ -34,7 +34,7 @@ isSuperkey rel@(Rel sch fds) attrs = attrClosure rel attrs == sch
 
 -- check if an attribute set is a key
 isKey :: Relation -> S.Set Attribute -> Bool
-isKey rel attrs = isSuperkey rel attrs && not (any (isSuperkey rel . flip S.delete attrs) attrs)
+isKey rel attrs = isSuperkey rel attrs && not (any (isSuperkey rel . (`S.delete` attrs)) attrs)
 
 recFindKeys :: Relation -> [S.Set Attribute] -> S.Set (S.Set Attribute) -> S.Set (S.Set Attribute)
 recFindKeys _ [] s = s

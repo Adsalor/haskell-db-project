@@ -1,6 +1,5 @@
 module Data.Relations.Normalization where 
 
-import Data.List (nub)
 import Data.Relations ( Relation (Rel), Attribute, FunctionalDependency (To))
 import Data.Relations.Dependencies ( keysOf )
 import Data.Set qualified as S

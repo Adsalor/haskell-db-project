@@ -1,8 +1,10 @@
 module Data.Relations.App where
+
 import Data.Relations
 import Data.Relations.Dependencies
 import Data.Relations.Decomposition
 import Data.Relations.Normalization
+
 import Text.Parsec
 import Text.Parsec.String
 import Text.Parsec.Token
@@ -17,7 +19,7 @@ lexer = makeTokenParser $ emptyDef {
     identLetter = alphaNum
 }
 ident :: Parser String
-ident  = identifier lexer
+ident = identifier lexer
 sym :: String -> Parser String
 sym = symbol lexer
 wsp :: Parser ()
