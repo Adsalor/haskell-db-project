@@ -51,7 +51,7 @@ keysOf r@(Rel sch fds) =
     let requiredKeyAttrs = S.difference sch $ S.unions (S.map rightSide fds)
     in recFindKeys r [requiredKeyAttrs] S.empty
 
--- Compute the closure of a set of FDs
+-- Compute the closure of a relation's FDs
 -- note that this is provided in absolutely maximal form
 -- and should not be used in practice unless strictly necessary
 fdClosure :: Relation -> Cover
@@ -72,11 +72,19 @@ isMinimal fds = let
             lhsNeeded fds (To lhs rhs) = not $ any (\a -> inClosure fds (To (S.delete a lhs) rhs)) lhs
     in allNeeded && allLHSNeeded
 
+recRemTrivial :: Cover -> [FunctionalDependency] -> S.Set FunctionalDependency -> Cover
+recRemTrivial _ [] newFDs = newFDs
+recRemTrivial originalFDs (fd@(To lhs _):fds) newFDs = let
+    lhsClosureOrig = recAttrClosure originalFDs lhs
+    lhsClosureNew = recAttrClosure (S.union (S.fromAscList fds) newFDs) lhs
+    in if lhsClosureOrig == lhsClosureNew then recRemTrivial originalFDs fds newFDs
+    else recRemTrivial originalFDs fds (S.insert fd newFDs) 
+
 -- Compute the minimal basis of an FD cover
 -- minimize's output should always satisfy isBasis and isMinimal
 minimize :: Cover -> Cover
 minimize fds = let
     basis = toBasis fds
-    purgeTrivial = undefined
+    purgeTrivial = recRemTrivial fds (S.toAscList fds) S.empty
     purgeTrivialLHS = undefined
     in purgeTrivialLHS

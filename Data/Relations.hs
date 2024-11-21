@@ -25,6 +25,9 @@ leftSide (To lhs _) = lhs
 rightSide :: FunctionalDependency -> S.Set Attribute
 rightSide (To _ rhs) = rhs
 
+attributesOf :: FunctionalDependency -> S.Set Attribute
+attributesOf x = S.union (leftSide x) (rightSide x)
+
 instance Show FunctionalDependency where
     show (To l r) = display l ++ "->" ++ display r
         where
