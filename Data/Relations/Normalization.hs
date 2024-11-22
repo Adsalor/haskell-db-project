@@ -1,28 +1,32 @@
 module Data.Relations.Normalization where 
 
 import Data.Relations ( Relation (Rel), Attribute, FunctionalDependency (To))
-import Data.Relations.Dependencies ( keysOf )
+import Data.Relations.Dependencies ( keysOf, isSuperkey, isTrivial, isKey )
 import Data.Set qualified as S
 
+-- Check if relation is in 1F
 is1NF :: Relation -> Bool
 is1NF = const True
 
+-- Get prime attributes of a relation
 primeAttributes :: Relation -> S.Set Attribute
 primeAttributes r = S.unions (keysOf r)
 
+-- Check if relation is in 2NF
 is2NF :: Relation -> Bool
 is2NF = undefined
 
-dependencyIs3NF :: S.Set Attribute -> S.Set (S.Set Attribute) -> FunctionalDependency -> Bool
-dependencyIs3NF pa k (l `To` r) = S.member l k || S.isSubsetOf r pa
+dependencyIs3NF :: S.Set Attribute -> Relation -> FunctionalDependency -> Bool
+dependencyIs3NF pa rel f@(l `To` r) = isTrivial f || isSuperkey rel l || (S.isSubsetOf r pa)
 
+-- Check if relation is in 3NF
 is3NF :: Relation -> Bool
 is3NF r@(Rel s f) = let pa = primeAttributes r;
-                        k = keysOf r 
-                        in all (dependencyIs3NF pa k) f
+                    in all (dependencyIs3NF pa r) f
 
-dependencyIsBCNF :: S.Set (S.Set Attribute) -> FunctionalDependency -> Bool
-dependencyIsBCNF k (l `To` r) = S.member l k
+dependencyIsBCNF :: Relation -> FunctionalDependency -> Bool
+dependencyIsBCNF k f@(l `To` r) = isTrivial f || isSuperkey k l || isKey k l 
 
+-- Check if relation is in BCNF
 isBCNF :: Relation -> Bool
-isBCNF r@(Rel s f) = let k = keysOf r in all (dependencyIsBCNF k) f
+isBCNF r@(Rel s f) = all (dependencyIsBCNF r) f
