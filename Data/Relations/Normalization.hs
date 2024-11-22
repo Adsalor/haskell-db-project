@@ -17,11 +17,11 @@ is2NF :: Relation -> Bool
 is2NF = undefined
 
 dependencyIs3NF :: S.Set Attribute -> Relation -> FunctionalDependency -> Bool
-dependencyIs3NF pa rel f@(l `To` r) = isTrivial f || isSuperkey rel l || (S.isSubsetOf r pa)
+dependencyIs3NF pa rel f@(l `To` r) = isTrivial f || isSuperkey rel l || S.isSubsetOf r pa
 
 -- Check if relation is in 3NF
 is3NF :: Relation -> Bool
-is3NF r@(Rel s f) = let pa = primeAttributes r;
+is3NF r@(Rel s f) = let pa = primeAttributes r
                     in all (dependencyIs3NF pa r) f
 
 dependencyIsBCNF :: Relation -> FunctionalDependency -> Bool

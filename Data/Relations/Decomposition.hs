@@ -1,8 +1,19 @@
 module Data.Relations.Decomposition where
 import Data.Set qualified as S
 import Data.Relations ( Relation (Rel), Attribute, Cover, Schema, leftSide, rightSide, FunctionalDependency (To))
-import Data.Relations.Dependencies ( fdClosure, lhsClosure, inSchema, minimize, keysOf, attrClosure, toBasis )
+import Data.Relations.Dependencies ( fdClosure, inSchema, minimize, keysOf, attrClosure, toBasis )
 import Data.Relations.Normalization ( is3NF, isBCNF, dependencyIsBCNF )
+
+
+-- Get all supersets of a subset (as in, given set (A,B,C) and attribute A, return ((A), (A,B), (A,C), (A,B,C)))
+lhsPowerSet :: S.Set FunctionalDependency -> Schema -> S.Set (S.Set Attribute)
+lhsPowerSet = undefined
+
+-- Compute the closure of all LHS' of FDs
+lhsClosure :: Relation -> Cover
+lhsClosure r@(Rel sch fds) = S.map (\s -> To s (attrClosure r s)) (lhsPowerSet fds sch)
+
+
 -- Decompose a relation to a list of relations following
 -- second normal form
 decompose2NF :: Relation -> [Relation]
@@ -40,11 +51,9 @@ decomposeOn r@(Rel sch fds) fd@(To lhs rhs) =
 -- Decompose a relation to a list of relations following
 -- Boyce-Codd normal form
 decomposeBCNF :: Relation -> [Relation]
-decomposeBCNF r@(Rel sch fds) 
-    | isBCNF r = [r]
-    | otherwise = 
-        let violating = S.findMin (S.filter (not . dependencyIsBCNF r) fds)
-        in concatMap decomposeBCNF (decomposeOn r violating)
+decomposeBCNF r@(Rel sch fds) =
+    let violating = S.lookupMin (S.filter (not . dependencyIsBCNF r) fds)
+    in maybe [r] (concatMap decomposeBCNF . decomposeOn r) violating
 
 -- Takes an original relation and a decomposition of the relation and
 -- checks if the decomposition is lossless

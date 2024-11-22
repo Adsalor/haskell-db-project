@@ -51,15 +51,6 @@ keysOf r@(Rel sch fds) =
     let requiredKeyAttrs = S.difference sch $ S.unions (S.map rightSide fds)
     in recFindKeys r [requiredKeyAttrs] S.empty
 
-
--- Get all supersets of a subset (as in, given set (A,B,C) and attribute A, return ((A), (A,B), (A,C), (A,B,C)))
-lhsPowerSet :: S.Set FunctionalDependency -> Schema -> S.Set (S.Set Attribute)
-lhsPowerSet = undefined
-
--- Compute the closure of all LHS' of FDs
-lhsClosure :: Relation -> Cover
-lhsClosure r@(Rel sch fds) = S.map (\s -> To s (attrClosure r s)) (lhsPowerSet fds sch)
-
 -- Compute the closure of a relation's FDs
 -- note that this is provided in absolutely maximal form
 -- and should not be used in practice unless strictly necessary
