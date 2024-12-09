@@ -1,8 +1,8 @@
 module Data.Relations.Decomposition where
 import Data.Set qualified as S
 import Data.Relations ( Relation (Rel), Attribute, Cover, Schema, leftSide, rightSide, FunctionalDependency (To))
-import Data.Relations.Dependencies ( fdClosure, inSchema, minimize, keysOf, attrClosure, toBasis )
-import Data.Relations.Normalization ( is3NF, isBCNF, dependencyIsBCNF )
+import Data.Relations.Dependencies ( fdClosure, inSchema, minimize, keysOf, attrClosure, toBasis, minimize )
+import Data.Relations.Normalization ( is3NF, isBCNF, dependencyIsBCNF, dependencyIs2NF )
 
 
 -- Get all supersets of a subset (as in, given set (A,B,C) and attribute A, return ((A), (A,B), (A,C), (A,B,C)))
@@ -14,10 +14,23 @@ lhsClosure :: Relation -> Cover
 lhsClosure r@(Rel sch fds) = S.map (\s -> To s (attrClosure r s)) (lhsPowerSet fds sch)
 
 
+splitDependencyInto2NF :: Relation -> FunctionalDependency  -> [Relation]
+splitDependencyInto2NF rel@(Rel s f) fd@(l `To` r)  = let leftClose = attrClosure rel l
+    in [projectDependencies f (S.union (S.difference s leftClose) l), projectDependencies f leftClose]
+
+
 -- Decompose a relation to a list of relations following
 -- second normal form
 decompose2NF :: Relation -> [Relation]
-decompose2NF = undefined
+decompose2NF rel@(Rel s f) = let 
+    notIn2NF = S.filter (\fd -> not (dependencyIs2NF rel fd)) f
+    in2NF = S.difference f notIn2NF
+    closures = S.map (\f@(l `To` r) -> attrClosure rel l) notIn2NF
+    leftSides = S.unions (S.map (\f@(l `To` r) -> l) notIn2NF)
+    notInDependency = S.difference s (S.unions (S.map (\f@(l `To` r) -> S.union l r) f))
+    notInFDAndLeftSides = S.union notInDependency leftSides
+    in projectDependencies f notInFDAndLeftSides : (map (projectDependencies f) (S.toList closures))
+
 
 fdToRelation :: Relation -> FunctionalDependency -> Relation
 fdToRelation r@(Rel sch fds) fd@(To lhs rhs) = 
@@ -70,7 +83,7 @@ isDependencyPreserving = undefined
 -- onto that schema
 -- *** Currently uses fdClosure, change to lhsClosure once that is implemented
 projectDependencies :: Cover -> Schema -> Relation
-projectDependencies c sch = Rel sch (S.filter (inSchema sch) (toBasis (fdClosure (Rel sch c))))
+projectDependencies c sch = Rel sch (minimize (S.filter (inSchema sch) (toBasis (fdClosure (Rel sch c)))))
 
 -- Project FDs from a relation onto a set of schemas.
 projectRelation :: Relation -> [Schema] -> [Relation]

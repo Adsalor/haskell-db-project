@@ -12,9 +12,16 @@ is1NF = const True
 primeAttributes :: Relation -> S.Set Attribute
 primeAttributes r = S.unions (keysOf r)
 
+dependencyIs2NF :: Relation -> FunctionalDependency -> Bool
+dependencyIs2NF rel f@(l `To` r) = isTrivial f 
+    || (let pa = primeAttributes rel in 
+    not (S.isSubsetOf r pa)
+    && all (/= True) (S.map (S.isProperSubsetOf l) (keysOf rel))) -- No partial dependencies
+
 -- Check if relation is in 2NF
 is2NF :: Relation -> Bool
-is2NF = undefined
+is2NF r@(Rel s f) = let pa = primeAttributes r
+                    in all (dependencyIs2NF r) f
 
 dependencyIs3NF :: S.Set Attribute -> Relation -> FunctionalDependency -> Bool
 dependencyIs3NF pa rel f@(l `To` r) = isTrivial f || isSuperkey rel l || S.isSubsetOf r pa
