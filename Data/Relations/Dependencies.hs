@@ -3,7 +3,7 @@ module Data.Relations.Dependencies where
 import Data.Relations ( Relation (Rel), Cover, FunctionalDependency (To), Attribute, Schema, leftSide, rightSide )
 import Data.Set qualified as S
 import Control.Monad.State qualified as ST
-import Control.Monad (when, foldM, join)
+import Control.Monad (when, foldM, ap)
 
 splitFD :: FunctionalDependency -> S.Set FunctionalDependency
 splitFD (To lhs rhs) = S.map (To lhs . S.singleton) rhs
@@ -92,7 +92,7 @@ remTrivialF originals fd@(To lhs _) = do
 recRemLHSF :: FunctionalDependency -> Cover ->  Cover
 recRemLHSF fd@(To lhs rhs) cover = S.insert reducedFD (S.delete fd cover)
     where reducedFD = ST.evalState (foldM remLHF fd lhs) cover
-    
+
 -- state here is FDs pre-editing this FD
 -- first param/return are FD before/after attribute evaluation
 -- same logic for state monad
@@ -114,3 +114,9 @@ minimize fds = let
     purgeTrivial = ST.execState (foldM remTrivialF basis basis) basis -- basis basis basis basis
     purgeTrivialLHS = foldr recRemLHSF purgeTrivial purgeTrivial
     in purgeTrivialLHS
+
+-- making awful pointfree crap is my way of coping with the tedium of writing algorithms
+-- please let me have this
+-- given a basis, recombine it into a cover
+combineBasis :: Cover -> Cover
+combineBasis fds = S.map (ap To (S.unions . S.map rightSide . (`S.filter` fds) . (. leftSide) . (==)) . leftSide) fds
