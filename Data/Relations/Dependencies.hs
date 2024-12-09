@@ -2,6 +2,8 @@ module Data.Relations.Dependencies where
 
 import Data.Relations ( Relation (Rel), Cover, FunctionalDependency (To), Attribute, Schema, leftSide, rightSide )
 import Data.Set qualified as S
+import Control.Monad.State qualified as ST
+import Control.Monad (when, foldM, join)
 
 splitFD :: FunctionalDependency -> S.Set FunctionalDependency
 splitFD (To lhs rhs) = S.map (To lhs . S.singleton) rhs
@@ -76,19 +78,39 @@ isMinimal fds = let
             lhsNeeded fds (To lhs rhs) = not $ any (\a -> inClosure fds (To (S.delete a lhs) rhs)) lhs
     in allNeeded && allLHSNeeded
 
-recRemTrivial :: Cover -> [FunctionalDependency] -> S.Set FunctionalDependency -> Cover
-recRemTrivial _ [] newFDs = newFDs
-recRemTrivial originalFDs (fd@(To lhs _):fds) newFDs = let
-    lhsClosureOrig = recAttrClosure originalFDs lhs
-    lhsClosureNew = recAttrClosure (S.union (S.fromAscList fds) newFDs) lhs
-    in if lhsClosureOrig == lhsClosureNew then recRemTrivial originalFDs fds newFDs
-    else recRemTrivial originalFDs fds (S.insert fd newFDs) 
+-- the state here is the new FDs
+-- the first parameter and return value are the constant original FDs
+-- using a state monad allows us to fold conveniently
+remTrivialF :: Cover -> FunctionalDependency -> ST.State (S.Set FunctionalDependency) Cover
+remTrivialF originals fd@(To lhs _) = do
+    newFDs <- ST.get
+    let lhsClosureOrig = recAttrClosure originals lhs
+    let lhsClosureNew = recAttrClosure (S.delete fd newFDs) lhs
+    when (lhsClosureOrig == lhsClosureNew) $ ST.modify (S.delete fd)
+    return originals
+
+recRemLHSF :: FunctionalDependency -> Cover ->  Cover
+recRemLHSF fd@(To lhs rhs) cover = S.insert reducedFD (S.delete fd cover)
+    where reducedFD = ST.evalState (foldM remLHF fd lhs) cover
+    
+-- state here is FDs pre-editing this FD
+-- first param/return are FD before/after attribute evaluation
+-- same logic for state monad
+remLHF :: FunctionalDependency -> Attribute -> ST.State (S.Set FunctionalDependency) FunctionalDependency
+remLHF fd@(To lhs rhs) attr = do
+    orig <- ST.get
+    let newLHS = S.delete attr lhs
+    let withoutAttr = To newLHS rhs
+    let new = S.insert withoutAttr (S.delete fd orig)
+    let newLHSOrigClosure = recAttrClosure orig newLHS
+    let newLHSNewClosure = recAttrClosure new newLHS
+    if newLHSOrigClosure == newLHSNewClosure then return withoutAttr else return fd
 
 -- Compute the minimal basis of an FD cover
 -- minimize's output should always satisfy isBasis and isMinimal
 minimize :: Cover -> Cover
 minimize fds = let
     basis = toBasis fds
-    purgeTrivial = recRemTrivial fds (S.toAscList fds) S.empty
-    purgeTrivialLHS = undefined
+    purgeTrivial = ST.execState (foldM remTrivialF basis basis) basis -- basis basis basis basis
+    purgeTrivialLHS = foldr recRemLHSF purgeTrivial purgeTrivial
     in purgeTrivialLHS
