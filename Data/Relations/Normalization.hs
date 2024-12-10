@@ -15,8 +15,8 @@ primeAttributes r = S.unions (keysOf r)
 dependencyIs2NF :: Relation -> FunctionalDependency -> Bool
 dependencyIs2NF rel f@(l `To` r) = isTrivial f 
     || (let pa = primeAttributes rel in 
-    not (S.isSubsetOf r pa)
-    && all not (S.map (S.isProperSubsetOf l) (keysOf rel))) -- No partial dependencies
+    (S.isSubsetOf r pa) -- Right is prime
+    || all not (S.map (S.isProperSubsetOf l) (keysOf rel))) -- Right is not prime and fd is not partial
 
 -- Check if relation is in 2NF
 is2NF :: Relation -> Bool
