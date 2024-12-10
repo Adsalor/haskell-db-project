@@ -126,7 +126,7 @@ getUserInput prompt = do
 
 printHelp :: M.Map String Relation -> IO (M.Map String Relation)
 printHelp namespace = do
-    putStrLn "h: list all commands"
+    putStrLn "h: help menu"
     putStrLn "i: import new relations"
     putStrLn "l: list existing relations"
     putStrLn "v: view relation details"
@@ -187,19 +187,27 @@ mergeInto list namespace = do
 
 mergeRel :: M.Map String Relation -> (String, Relation) -> IO (M.Map String Relation)
 mergeRel namespace (name,rel) = do
-    if M.member name namespace then
-        newName rel name namespace
+    if M.member name namespace then do
+        putStrLn $ "'" ++ name ++ "' is already in use!"
+        newName rel namespace
     else
         return $ M.insert name rel namespace
 
-newName :: Relation -> String -> M.Map String Relation -> IO (M.Map String Relation)
-newName rel oldname namespace = do
-    name <- getUserInput $ "'" ++ oldname ++ "' is already in use or is invalid due to formatting, please input a different name: "
-    if any isSpace name || M.member name namespace then
-        newName rel name namespace
-    else do
-        putStrLn $ "Successfully inserted relation " ++ name ++ "!"
-        return $ M.insert name rel namespace
+newName :: Relation -> M.Map String Relation -> IO (M.Map String Relation)
+newName rel namespace = do
+    i <- getUserInput "Please input a new name: "
+    let parsedName = parse ident "" i
+    case parse ident "" i of
+        (Right name) ->
+            if M.member name namespace then do
+                putStrLn $ "'" ++ name ++ "' is already in use!"
+                newName rel namespace
+            else do
+                putStrLn $ "Successfully inserted relation " ++ name ++ "!"
+                return $ M.insert name rel namespace
+        (Left err) -> do
+            putStrLn "Invalid formatting! Names should be one word."
+            newName rel namespace
 
 viewRelation :: M.Map String Relation -> IO (M.Map String Relation)
 viewRelation namespace = do
@@ -253,10 +261,42 @@ editSelectedRelation namespace (name,rel) = do
             editSelectedRelation namespace (name,rel)
 
 addFDs :: String -> Relation -> M.Map String Relation -> IO (M.Map String Relation)
-addFDs = undefined
+addFDs name relation namespace = do
+    i <- getUserInput "Please list all new FDs to add to the relation!"
+    case parse (many1 (try fd)) "" i of
+        (Left err) -> do
+            putStrLn $ "Error parsing your input: " ++ show err
+            return namespace
+        (Right fds) -> do
+            putStrLn $ "Added your FDs to relation '" ++ name ++ "'!"
+            return $ M.adjust (\(Rel sch oldFDs) -> Rel sch (S.union oldFDs $ S.fromList fds)) name namespace
 
 removeFDs :: String -> Relation -> M.Map String Relation -> IO (M.Map String Relation)
-removeFDs = undefined
+removeFDs = undefined -- todo later :(
+
+renameRel :: String -> Relation -> M.Map String Relation -> IO (M.Map String Relation)
+renameRel oldName relation namespace = newName relation (M.delete oldName namespace)
+
+decomposeCommands :: M.Map String (Relation -> [Relation])
+decomposeCommands = M.fromList [("2NF",decompose2NF),("3NF",decompose3NF),("BCNF",decomposeBCNF),("c",return)]
 
 decompose :: String -> Relation -> M.Map String Relation -> IO (M.Map String Relation)
-decompose = undefined
+decompose name relation namespace = do
+    i <- getUserInput "Select decomposition mode, or c to cancel: "
+    case M.lookup i decomposeCommands of
+        (Just fn) -> do
+            let decomp = fn relation
+            if 1 == length decomp then do
+                putStrLn $ "Relation was already in " ++ i ++ "!"
+                return namespace
+            else
+                return $ foldr (addNewName name) namespace (zip decomp [1..])
+        Nothing -> do
+            putStrLn "Unknown decomposition mode! Use 2NF, 3NF, or BCNF!"
+            decompose name relation namespace
+
+addNewName :: String -> (Relation, Int) -> M.Map String Relation -> M.Map String Relation
+addNewName origName (rel,num) namespace =
+    let relName = head $ dropWhile (`M.member` namespace) $ iterate (++ "'") $ origName ++ show num
+    in M.insert relName rel namespace
+
