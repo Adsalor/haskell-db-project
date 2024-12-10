@@ -91,23 +91,23 @@ changeRow :: Bool -> [Bool] -> [Attribute] -> [Attribute] -> [Attribute]
 changeRow False _ names _ = names
 changeRow _ [] _ _ = []
 changeRow _ bools@(b:bs) cbNames@(newA:newAs) relationNames@(oldA:oldAs)  
-    = if b then newA : changeRow True bs newAs oldAs
-    else oldA : changeRow True bs newAs oldAs
+    = if b then oldA : changeRow True bs newAs oldAs
+    else newA : changeRow True bs newAs oldAs
 
 canonicalBasis :: Relation -> [Relation] -> Int -> [[Attribute]]
 canonicalBasis r [] _ = []
 canonicalBasis r@(Rel s f) (r2@(Rel s2 f2):rs) i = 
     constructRow (S.toList s) (S.toList s2) i : canonicalBasis r rs (i+1)
 
-getAttributesOnLeft :: FunctionalDependency -> [Attribute] -> [Bool]
-getAttributesOnLeft _ [] = []
-getAttributesOnLeft fd@(l `To` r) (a:as) = S.member a l : getAttributesOnLeft fd as
+getAttributesOnRight :: FunctionalDependency -> [Attribute] -> [Bool]
+getAttributesOnRight _ [] = []
+getAttributesOnRight fd@(l `To` r) (a:as) = S.member a r : getAttributesOnRight fd as
 
 changeRows :: [Bool] -> [Bool] -> [Bool] -> [[Attribute]] -> Relation -> FunctionalDependency -> [[Attribute]]
 changeRows [] _ _ _ _ _ = []
 changeRows left@(b:bs) right both (cb:cbs) r@(Rel s f) fd =
-    if length (filter (== True) both) > 1
-        then (changeRow b (getAttributesOnLeft fd (S.toList s)) cb (S.toList s)) : changeRows bs right both cbs r fd
+    if length (filter (== True) left) > 1
+        then (changeRow b (getAttributesOnRight fd (S.toList s)) cb (S.toList s)) : changeRows bs right both cbs r fd
     else cb:cbs
 
 
@@ -121,13 +121,15 @@ chase cb ((f@(l `To` r)):fs) rel allFds =
     new = changeRows left right both cb rel f
     in
     if new == cb then chase cb fs rel allFds
-    else new --chase new allFds rel allFds
+    else chase new allFds rel allFds
 
+allSubscriptless :: [[Attribute]] -> [Attribute] -> Bool
+allSubscriptless cb s = any (== s) cb
 
 -- Takes an original relation and a decomposition of the relation and
 -- checks if the decomposition is lossless
-isLossless :: Relation -> [Relation] -> [[Attribute]]
-isLossless rel@(Rel s f) rels = let minF = toBasis f in chase (canonicalBasis rel rels 1) (S.toList minF) rel (S.toList minF)
+isLossless :: Relation -> [Relation] -> Bool
+isLossless rel@(Rel s f) rels = let minF = toBasis f in allSubscriptless (chase (canonicalBasis rel rels 1) (S.toList minF) rel (S.toList minF)) (S.toList s)
 
 -- Takes an original relation and a decomposition of the relation and
 -- checks if the decomposition is dependency preserving
