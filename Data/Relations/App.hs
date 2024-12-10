@@ -58,6 +58,53 @@ fileParser = do
 extract :: Parser a -> String -> a
 extract p s = either (error . show) id $ parse p "" s
 
+-- h - List of commands
+-- l <filename> - Load File
+-- db - List all relation names
+-- r <relationName> - view relation
+-- k <relationName> - get keys of a relation
+-- n <RelationName> - add a new relation
+-- s <relationName> - select relation
+-- add <L>-><R> - add a FD to the relation (L and R are in the format of the inputFile)
+-- remove <L>-><R> - remove a FD to the relation if it exists
+-- check <decompType> - check if currently selected relation follows a normal form
+    -- decompType is '1NF' '2NF' '3NF' 'BCNF'
+    -- if no normal form is specified, list all normal forms the selected relation follows
+-- decomp <decompType> - decompose selected relation into a normal form
+    -- should add the decomposed relations to the environment i imagine
+-- min - display the minimal basis of the selected relation
+-- closure <list of attributes> - give the closure of the list of attributes in the selected relation
+
+-- is decomposition <Decomposition> - Given a list of relations in the form of <Name>(<Attributes>) separated by commas, create the relations in the decomposition (including projected relations)
+    -- Ex - decomposition R1(A,B),R2(C,E),R3(A,D)
+-- lossless - check if a set of relations is a lossless decomposition of the selected relation
+-- preserving - check if a set of relations is a dependency preserving decompositon of the selected relations
+
+
+-- I think the way things like checking if a set of relations is a lossless decomposition of another could work like this
+    -- I think theres probably a better way to go about this part so if you have suggestions lmk
+    -- You call the command with the non-decomposed relation selected, then it prompts you to a second menu
+    -- This menu only has the ability to list all relations, select relations to add to the decomposition set, or cancel
+    -- so for example something like
+
+    -- Current Relation: R
+    --  -> lossless (the arrow is just what im imagining to demonstrate that its taking user input)
+    -- Choose what relations make up the decomposition of R: select h for help
+    --  -> h
+    --  h - List of commands
+    --  db - List all relation names and schemas (maybe limit it to ones that have a subset of the attributes so that its not cluttering with relations that obviously cant be part of the decomp?)
+    --  r <Relations> - Select relations to make up the decomposition of R, these should be the names of the relations separated with commas and no spaces
+    --  c - Cancel operation
+    --  -> r R1,R2,R3
+    --  True
+    -- Current Relation: R (This is the outer menu again, theyd have to select lossless again to try a new set)
+
+
+
+
+
+
+
 -- for the actual app: we intend to make a state monad to pass named relation environment
 -- so we can go for a REPL-style loop
 -- haven't done this yet because not 100% sure how to combine IO monad and that state monad

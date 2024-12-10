@@ -1,6 +1,6 @@
 module Data.Relations.Decomposition where
 import Data.Set qualified as S
-import Data.Relations ( Relation (Rel), Attribute, Cover, Schema, leftSide, rightSide, FunctionalDependency (To))
+import Data.Relations ( Relation (Rel), Attribute (Attr), Cover, Schema, leftSide, rightSide, FunctionalDependency (To))
 import Data.Relations.Dependencies ( fdClosure, inSchema, minimize, keysOf, attrClosure, toBasis, minimize )
 import Data.Relations.Normalization ( is3NF, isBCNF, dependencyIsBCNF, dependencyIs2NF )
 
@@ -68,15 +68,49 @@ decomposeBCNF r@(Rel sch fds) =
     let violating = S.lookupMin (S.filter (not . dependencyIsBCNF r) fds)
     in maybe [r] (concatMap decomposeBCNF . decomposeOn r) violating
 
+constructRow :: [Attribute] -> [Attribute] -> Int -> [Attribute]
+constructRow [] s i = []
+constructRow (a:as) s i = 
+    if a `elem` s then Attr (show a) : constructRow as s i
+    else Attr (show a ++ show i) : constructRow as s i
+
+canonicalBasis :: Relation -> [Relation] -> Int -> [[Attribute]]
+canonicalBasis r [] _ = []
+canonicalBasis r@(Rel s f) (r2@(Rel s2 f2):rs) i = 
+    constructRow (S.toList s) (S.toList s2) i : canonicalBasis r rs (i+1)
+
+subscriptlessLeftAndRight :: [Bool] -> [Bool] -> Bool
+subscriptlessLeftAndRight [] [] = False
+subscriptlessLeftAndRight (x:xs) (y:ys) = x && y || subscriptlessLeftAndRight xs ys
+
+subscriptlessLeftNotRight :: [Bool] -> [Bool] -> Bool
+subscriptlessLeftNotRight [] [] = False
+subscriptlessLeftNotRight (x:xs) (y:ys) = x && (not y) || subscriptlessLeftNotRight xs ys
+
+
+
+chase :: [[Attribute]] -> [FunctionalDependency] -> [[Attribute]]
+chase cb [] = cb
+chase cb ((f@(l `To` r)):fs) = 
+    let 
+    left = map (S.isSubsetOf l) (map S.fromList cb)
+    right = map (S.isSubsetOf r) (map S.fromList cb)
+    in
+    if subscriptlessLeftAndRight left right && subscriptlessLeftNotRight left right 
+        then undefined 
+        else chase cb fs
+
+
 -- Takes an original relation and a decomposition of the relation and
 -- checks if the decomposition is lossless
 isLossless :: Relation -> [Relation] -> Bool
-isLossless = undefined
+isLossless rel rels = undefined
 
 -- Takes an original relation and a decomposition of the relation and
 -- checks if the decomposition is dependency preserving
 isDependencyPreserving :: Relation -> [Relation] -> Bool
-isDependencyPreserving = undefined
+isDependencyPreserving rel@(Rel s f) rels = 
+    minimize f == minimize (S.unions (S.fromList (map (\r@(Rel s2 f2) -> f2) rels)))
 
 -- Given an original cover and a schema, creates a new relation containing
 -- the schema and the projected functional dependencies from the cover
