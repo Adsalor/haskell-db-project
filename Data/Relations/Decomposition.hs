@@ -1,5 +1,5 @@
 module Data.Relations.Decomposition where
-import Data.List 
+import Data.List
 import Data.Set qualified as S
 import Data.Relations ( Relation (Rel), Attribute (Attr), Cover, Schema, leftSide, rightSide, FunctionalDependency (To))
 import Data.Relations.Dependencies ( fdClosure, inSchema, minimize, keysOf, attrClosure, toBasis, minimize )
@@ -23,52 +23,52 @@ splitDependencyInto2NF rel@(Rel s f) fd@(l `To` r)  = let leftClose = attrClosur
 -- Decompose a relation to a list of relations following
 -- second normal form
 decompose2NF :: Relation -> [Relation]
-decompose2NF rel@(Rel s f) = let 
-    notIn2NF = S.filter (\fd -> not (dependencyIs2NF rel fd)) f
+decompose2NF rel@(Rel s f) = let
+    notIn2NF = S.filter (not . dependencyIs2NF rel) f
     in2NF = S.difference f notIn2NF
     closures = S.map (\f@(l `To` r) -> attrClosure rel l) notIn2NF
     leftSides = S.unions (S.map (\f@(l `To` r) -> l) notIn2NF)
     notInDependency = S.difference s (S.unions (S.map (\f@(l `To` r) -> S.union l r) f))
     notInFDAndLeftSides = S.union notInDependency leftSides
-    in projectDependencies f notInFDAndLeftSides : (map (projectDependencies f) (S.toList closures))
+    in projectDependencies f notInFDAndLeftSides : map (projectDependencies f) (S.toList closures)
 
 
 fdToRelation :: Relation -> FunctionalDependency -> Relation
-fdToRelation r@(Rel sch fds) fd@(To lhs rhs) = 
+fdToRelation r@(Rel sch fds) fd@(To lhs rhs) =
     let s = S.union lhs rhs
     in projectDependencies fds s
 
 addKey :: Relation -> [Relation] -> [Relation]
-addKey r@(Rel s f) rs 
+addKey r@(Rel s f) rs
     -- If key is already in a relation
     | any (S.isSubsetOf (S.findMin (keysOf r))) (S.fromList (map (\r@(Rel sch fds) -> sch) rs)) = rs
     | otherwise = projectDependencies f (S.findMin (keysOf r)) : rs
 
 removeSubsetsOfRelation :: [Relation] -> Relation -> [Relation]
-removeSubsetsOfRelation rs r@(Rel s f)  = filter (\rel@(Rel s1 f1) -> not (S.isProperSubsetOf s1 s)) (rs)
+removeSubsetsOfRelation rs r@(Rel s f)  = filter (\rel@(Rel s1 f1) -> not (S.isProperSubsetOf s1 s)) rs
 
 
 removeSubsets :: [Relation] -> [Relation]
-removeSubsets rs = let 
-    removed = (map (removeSubsetsOfRelation rs) rs) 
+removeSubsets rs = let
+    removed = map (removeSubsetsOfRelation rs) rs
     smallest = minimum (map length removed)
     largest = maximum (map length removed)
     in
-    if smallest < largest then removeSubsets (head (filter (\r -> (length r == smallest)) removed))
-    else (head removed)
+    if smallest < largest then removeSubsets (head (filter ((== smallest) . length) removed))
+    else head removed
 
 -- Decompose a relation to a list of relations following
 -- third normal form
 -- *** Need to implement removing relations that are subsets of other relations
 decompose3NF :: Relation -> [Relation]
-decompose3NF r@(Rel sch fds) 
+decompose3NF r@(Rel sch fds)
     | is3NF r = [r]
     | otherwise = let minBasis = minimize fds in
         removeSubsets (addKey r (map (fdToRelation r) (S.toList fds)))
 
 
 decomposeOn :: Relation -> FunctionalDependency -> [Relation]
-decomposeOn r@(Rel sch fds) fd@(To lhs rhs) = 
+decomposeOn r@(Rel sch fds) fd@(To lhs rhs) =
     let lhsClosure = attrClosure r lhs
         r1 = projectDependencies fds lhsClosure
         r2 = projectDependencies fds (S.difference sch (S.difference lhsClosure lhs)) in
@@ -83,20 +83,20 @@ decomposeBCNF r@(Rel sch fds) =
 
 constructRow :: [Attribute] -> [Attribute] -> Int -> [Attribute]
 constructRow [] s i = []
-constructRow (a:as) s i = 
+constructRow (a:as) s i =
     if a `elem` s then Attr (show a) : constructRow as s i
     else Attr (show a ++ show i) : constructRow as s i
 
 changeRow :: Bool -> [Bool] -> [Attribute] -> [Attribute] -> [Attribute]
 changeRow False _ names _ = names
 changeRow _ [] _ _ = []
-changeRow _ bools@(b:bs) cbNames@(newA:newAs) relationNames@(oldA:oldAs)  
+changeRow _ bools@(b:bs) cbNames@(newA:newAs) relationNames@(oldA:oldAs)
     = if b then oldA : changeRow True bs newAs oldAs
     else newA : changeRow True bs newAs oldAs
 
 canonicalBasis :: Relation -> [Relation] -> Int -> [[Attribute]]
 canonicalBasis r [] _ = []
-canonicalBasis r@(Rel s f) (r2@(Rel s2 f2):rs) i = 
+canonicalBasis r@(Rel s f) (r2@(Rel s2 f2):rs) i =
     constructRow (S.toList s) (S.toList s2) i : canonicalBasis r rs (i+1)
 
 getAttributesOnRight :: FunctionalDependency -> [Attribute] -> [Bool]
@@ -113,8 +113,8 @@ changeRows left@(b:bs) right both (cb:cbs) r@(Rel s f) fd =
 
 chase :: [[Attribute]] -> [FunctionalDependency] -> Relation -> [FunctionalDependency] -> [[Attribute]]
 chase cb [] _ _ = cb
-chase cb ((f@(l `To` r)):fs) rel allFds = 
-    let 
+chase cb ((f@(l `To` r)):fs) rel allFds =
+    let
     left = map (S.isSubsetOf l . S.fromList) cb -- Boolean list of if each row has the lefthand values of the FD subscriptless
     right = map (S.isSubsetOf r . S.fromList) cb
     both = zipWith (&&) left right
@@ -134,7 +134,7 @@ isLossless rel@(Rel s f) rels = let minF = toBasis f in allSubscriptless (chase 
 -- Takes an original relation and a decomposition of the relation and
 -- checks if the decomposition is dependency preserving
 isDependencyPreserving :: Relation -> [Relation] -> Bool
-isDependencyPreserving rel@(Rel s f) rels = 
+isDependencyPreserving rel@(Rel s f) rels =
     minimize f == minimize (S.unions (S.fromList (map (\r@(Rel s2 f2) -> f2) rels)))
 
 -- Given an original cover and a schema, creates a new relation containing
