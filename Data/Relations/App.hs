@@ -204,4 +204,4 @@ showDetails name rel = do
     print $ map S.toAscList $ S.toAscList $ keysOf rel
     putStrLn "Normal Forms:"
     putStrLn $ "1NF: " ++ show (is1NF rel) ++ "   2NF: " ++ show (is2NF rel)
-    putStrLn $ "3NF: " ++ show (is1NF rel) ++ "   BCNF: " ++ show (isBCNF rel)
+    putStrLn $ "3NF: " ++ show (is3NF rel) ++ "   BCNF: " ++ show (isBCNF rel)

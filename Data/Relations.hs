@@ -49,6 +49,7 @@ isBasis = all rhs1
 -- Relations --
 
 data Relation = Rel Schema Cover
+    deriving (Eq)
 
 verifyRelation :: Relation -> Bool
 verifyRelation (Rel schema fds) = all (check schema) fds
