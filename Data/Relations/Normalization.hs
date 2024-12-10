@@ -16,7 +16,7 @@ dependencyIs2NF :: Relation -> FunctionalDependency -> Bool
 dependencyIs2NF rel f@(l `To` r) = isTrivial f 
     || (let pa = primeAttributes rel in 
     not (S.isSubsetOf r pa)
-    && all (/= True) (S.map (S.isProperSubsetOf l) (keysOf rel))) -- No partial dependencies
+    && all not (S.map (S.isProperSubsetOf l) (keysOf rel))) -- No partial dependencies
 
 -- Check if relation is in 2NF
 is2NF :: Relation -> Bool
@@ -32,7 +32,7 @@ is3NF r@(Rel s f) = let pa = primeAttributes r
                     in all (dependencyIs3NF pa r) f
 
 dependencyIsBCNF :: Relation -> FunctionalDependency -> Bool
-dependencyIsBCNF k f@(l `To` r) = isTrivial f || isSuperkey k l || isKey k l 
+dependencyIsBCNF k f@(l `To` r) = isTrivial f || isSuperkey k l
 
 -- Check if relation is in BCNF
 isBCNF :: Relation -> Bool

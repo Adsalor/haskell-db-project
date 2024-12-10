@@ -5,11 +5,19 @@ import Data.Relations.Dependencies
 import Data.Relations.Decomposition
 import Data.Relations.Normalization
 
+
+import Data.Text (strip, pack, unpack)
+import Data.Char (isSpace)
+
 import Text.Parsec
 import Text.Parsec.String
 import Text.Parsec.Token
 import Text.Parsec.Language (emptyDef)
+
 import Data.Set qualified as S
+import Data.Map qualified as M
+
+import Control.Monad (unless)
 
 -- Parsing
 
@@ -64,10 +72,11 @@ extract p s = either (error . show) id $ parse p "" s
 -- r <relationName> - view relation
 -- k <relationName> - get keys of a relation
 -- n <RelationName> - add a new relation
--- s <relationName> - select relation
--- add <L>-><R> - add a FD to the relation (L and R are in the format of the inputFile)
--- remove <L>-><R> - remove a FD to the relation if it exists
--- check <decompType> - check if currently selected relation follows a normal form
+-- not doing selection because it's a pain in the ass
+-- -- -- -- s <relationName> - select relation
+-- -- -- -- add <L>-><R> - add a FD to the relation (L and R are in the format of the inputFile)
+-- -- -- -- remove <L>-><R> - remove a FD to the relation if it exists
+-- -- -- -- check <decompType> - check if currently selected relation follows a normal form
     -- decompType is '1NF' '2NF' '3NF' 'BCNF'
     -- if no normal form is specified, list all normal forms the selected relation follows
 -- decomp <decompType> - decompose selected relation into a normal form
@@ -99,68 +108,100 @@ extract p s = either (error . show) id $ parse p "" s
     --  True
     -- Current Relation: R (This is the outer menu again, theyd have to select lossless again to try a new set)
 
+main :: IO ()
+main = mainLoop M.empty
 
+mainCommands :: M.Map String (M.Map String Relation -> IO (M.Map String Relation))
+mainCommands = M.fromList [("h",printHelp),("i",importData),("l",listRelations),("v",viewRelation),("e",undefined)]
 
+mainLoop :: M.Map String Relation -> IO ()
+mainLoop namespace = do
+    i <- getUserInput "Select an action: "
+    unless (i == "q") $ 
+        case M.lookup i mainCommands of
+            (Just fn) -> do
+                newNames <- fn namespace
+                mainLoop newNames
+            Nothing -> do
+                putStrLn ("Unknown action '" ++ i ++ "', use 'h' for help")
+                mainLoop namespace
 
+getUserInput :: String -> IO String
+getUserInput prompt = do
+    putStr prompt
+    unpack . strip . pack <$> getLine -- OverloadedStrings is not working so this is the workaround
 
+printHelp :: M.Map String Relation -> IO (M.Map String Relation)
+printHelp namespace = do
+    putStrLn "h: list all commands"
+    putStrLn "i: import new relations"
+    putStrLn "l: list existing relations"
+    putStrLn "v: view relation details"
+    putStrLn "e: edit existing relation"
+    putStrLn "q: quit this app"
+    return namespace
 
+showRel :: String -> Relation -> IO ()
+showRel name relation = putStrLn $ name ++ show relation
 
--- for the actual app: we intend to make a state monad to pass named relation environment
--- so we can go for a REPL-style loop
--- haven't done this yet because not 100% sure how to combine IO monad and that state monad
--- so no solid signatures
--- but will be something like
+listRelations :: M.Map String Relation -> IO (M.Map String Relation)
+listRelations namespace = do
+    if null namespace then
+        putStrLn "No current relations!"
+    else
+        sequence_ $ M.mapWithKey showRel namespace
+    return namespace
 
--- load in files from input
--- readFile :: IO (Maybe [(String,Relation)]) -- or some other type depending on the working of the monad
+importData :: M.Map String Relation -> IO (M.Map String Relation)
+importData namespace = do
+    i <- getUserInput "How will you load in data [f for file, i for input, c to cancel]? "
+    case i of
+        "f" -> 
+            undefined
+        "i" -> do
+            i2 <- getUserInput "Input the new relation: "
+            case parse relation "" i2 of
+                (Left err) -> do
+                    putStrLn $ "Error parsing your input: " ++ show err
+                    return namespace
+                (Right (name,rel)) ->
+                    if M.member name namespace then
+                        newName rel name namespace
+                    else do
+                        putStrLn $ "Successfully inserted relation " ++ name ++ "!"
+                        return $ M.insert name rel namespace
+        "c" ->
+            return namespace
+        x -> do
+            putStrLn ("Unknown action '" ++ x ++ "', please use one of the listed options!")
+            importData namespace
 
--- prompt the user to take a given action from the list (view relation, select relations, perform action)
--- mainMenu :: IO ()
+newName :: Relation -> String -> M.Map String Relation -> IO (M.Map String Relation)
+newName rel oldname namespace = do
+    name <- getUserInput $ "'" ++ oldname ++ "' is already in use or is invalid due to formatting, please input a different name: "
+    if any isSpace name || M.member name namespace then
+        newName rel name namespace
+    else do
+        putStrLn $ "Successfully inserted relation " ++ name ++ "!"
+        return $ M.insert name rel namespace
 
--- list all relations in the environment to the user
--- listRelations :: _ () -- not just IO
+viewRelation :: M.Map String Relation -> IO (M.Map String Relation)
+viewRelation namespace = do
+    i <- getUserInput "Please input the name of the relation you want details of: "
+    case M.lookup i namespace of
+        (Just rel) -> do
+            showDetails i rel
+            return namespace
+        Nothing -> do
+            putStrLn $ "Unknown name '" ++ i ++ "', please specify an existing name! Known relations are"
+            listRelations namespace
+            viewRelation namespace
 
--- rename a specific environment to a new name
--- rename :: String -> String -> _ ()
-
--- provide the list of actions which can be taken on a specific relation
--- likely (closure computation, keyfinding, FD closures, minimal basis of a set)
--- relationMenu :: _ ()
-
--- prompt the user for a set of attributes and get its closure
--- getClosure :: _ ()
-
--- get the keys of the currently selected relation
--- getKeys :: _ ()
-
--- get the set of FD closures, printing a few at a time and waiting for user approval to print more
--- getFDClosure :: _ ()
-
--- display the minimal basis of the FD set of the selected relation
--- minimalBasis :: _ ()
-
--- add an FD to a relation
--- addFD :: _ ()
-
--- remove an FD from a relation
--- removeFD :: _ ()
-
--- display the decomposition/normalization menu
--- likely commands here: check normal forms, perform arbitrary decomposition,
--- decompose to normal form, check if selected relations are lossless of another
--- decomposeMenu :: _ ()
-
--- prompt the user to select new relations from the known relations
--- selectRelations :: _ [Relation]
-
--- prompt the user for an arbitrary schema list to split a selected relation into
--- decompose :: _ ()
-
--- print the list of normal forms the selected relation is in
--- normalForms :: _ ()
-
--- perform an arbitrary decomposition to a new normal form
--- normalize :: _ ()
-
--- probably others too, but this isn't really the main focus at the moment and I want to ask about how to do the
--- state of the REPL loop before committing to anything
+showDetails :: String -> Relation -> IO ()
+showDetails name rel = do
+    print rel
+    putStr $ "Keys of " ++ name ++ ": "
+    print $ map S.toAscList $ S.toAscList $ keysOf rel
+    putStrLn "Normal Forms:"
+    putStrLn $ "1NF: " ++ show (is1NF rel) ++ "   2NF: " ++ show (is2NF rel)
+    putStrLn $ "3NF: " ++ show (is1NF rel) ++ "   BCNF: " ++ show (isBCNF rel)
