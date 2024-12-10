@@ -1,4 +1,5 @@
-module Data.Relations.Dependencies where
+module Data.Relations.Dependencies 
+    (toBasis,isTrivial,attrClosure,isSuperkey,isKey,keysOf,fdClosure,inClosure,inSchema,isMinimal,minimize,combineBasis) where
 
 import Data.Relations ( Relation (Rel), Cover, FunctionalDependency (To), Attribute, Schema, leftSide, rightSide )
 import Data.Set qualified as S

@@ -66,6 +66,212 @@ fileParser = do
 extract :: Parser a -> String -> a
 extract p s = either (error . show) id $ parse p "" s
 
+
+
+------------------------- APP CODE ------------------------------
+
+type Namespace = M.Map String Relation
+
+main :: IO ()
+main = mainLoop M.empty
+
+mainCommands :: M.Map String (Namespace -> IO Namespace)
+mainCommands = M.fromList [("h",printHelp),("i",importData),("l",listRelations),("v",viewRelation),("e",editRelation)]
+
+mainLoop :: Namespace -> IO ()
+mainLoop namespace = do
+    i <- getUserInput "Select an action: "
+    unless (i == "q") $
+        case M.lookup i mainCommands of
+            (Just fn) -> mainLoop =<< fn namespace
+            Nothing -> do
+                putStrLn $ "Unknown action '" ++ i ++ "', use 'h' for help."
+                mainLoop namespace
+
+getUserInput :: String -> IO String
+getUserInput prompt = do
+    putStr prompt
+    unpack . strip . pack <$> getLine -- OverloadedStrings is not working so this is the workaround
+
+printHelp :: Namespace -> IO Namespace
+printHelp namespace = do
+    putStrLn "h: help menu"
+    putStrLn "i: import new relations"
+    putStrLn "l: list existing relations"
+    putStrLn "v: view relation details"
+    putStrLn "e: edit existing relation"
+    putStrLn "q: quit this app"
+    return namespace
+
+showRel :: String -> Relation -> IO ()
+showRel name relation = putStrLn $ name ++ show relation
+
+listRelations :: Namespace -> IO Namespace
+listRelations namespace = do
+    if null namespace then
+        putStrLn "No current relations!"
+    else
+        sequence_ $ M.mapWithKey showRel namespace
+    return namespace
+
+importCommands :: M.Map String (Namespace -> IO Namespace)
+importCommands = M.fromList [("f",loadFromFile),("i",readManualRelation),("c",return)]
+
+importData :: Namespace -> IO Namespace
+importData namespace = do
+    i <- getUserInput "Select a loading option [f for file, i for input, c to cancel]: "
+    case M.lookup i importCommands of
+        (Just fn) -> fn namespace
+        Nothing -> do
+            putStrLn $ "Unknown action '" ++ i ++ "', please use one of the listed options!"
+            importData namespace
+
+loadFromFile :: Namespace -> IO Namespace
+loadFromFile namespace = do
+    i2 <- getUserInput "Input the file: "
+    contents <- parseFromFile fileParser i2
+    case contents of
+        (Left err) -> do
+            putStrLn $ "Error parsing your input: " ++ show err
+            return namespace
+        (Right list) ->
+            mergeInto list namespace
+
+readManualRelation :: Namespace -> IO Namespace
+readManualRelation namespace = do
+    i2 <- getUserInput "Input the new relation: "
+    case parse relation "" i2 of
+        (Left err) -> do
+            putStrLn $ "Error parsing your input: " ++ show err
+            return namespace
+        (Right (name,rel)) -> do
+            unless (M.member name namespace) $ putStrLn $ "Successfully imported relation '" ++ name ++ "'!"
+            mergeRel namespace (name,rel)
+
+mergeInto :: [(String, Relation)] -> Namespace -> IO Namespace
+mergeInto list namespace = do
+    ls <- foldM mergeRel namespace list
+    putStrLn "Successfully loaded in all relations from file!"
+    return ls
+
+mergeRel :: Namespace -> (String, Relation) -> IO Namespace
+mergeRel namespace (name,rel) = if M.member name namespace then do
+    putStrLn $ "'" ++ name ++ "' is already in use!"
+    newName rel namespace
+else
+    return $ M.insert name rel namespace
+
+newName :: Relation -> Namespace -> IO Namespace
+newName rel namespace = do
+    i <- getUserInput "Please input a new name: "
+    let parsedName = parse ident "" i
+    case parse ident "" i of
+        (Right name) ->
+            if M.member name namespace then do
+                putStrLn $ "'" ++ name ++ "' is already in use!"
+                newName rel namespace
+            else do
+                putStrLn $ "Successfully inserted relation " ++ name ++ "!"
+                return $ M.insert name rel namespace
+        (Left err) -> do
+            putStrLn "Invalid formatting! Names should be one word."
+            newName rel namespace
+
+viewRelation :: Namespace -> IO Namespace
+viewRelation namespace = if null namespace then do
+    putStrLn "No relations known! Load some first!"
+    return namespace
+else do
+    (name,rel) <- getUserRelation namespace
+    showDetails name rel
+    return namespace
+
+getUserRelation :: Namespace -> IO (String,Relation)
+getUserRelation namespace = do
+    i <- getUserInput "Please input the name of the relation: "
+    case M.lookup i namespace of
+        (Just rel) -> return (i,rel)
+        Nothing -> do
+            putStrLn $ "Unknown name '" ++ i ++ "', please specify an existing name! Known relations are"
+            listRelations namespace
+            getUserRelation namespace
+
+showDetails :: String -> Relation -> IO ()
+showDetails name rel = do
+    print rel
+    putStr $ "Keys of " ++ name ++ ": "
+    print $ map S.toAscList $ S.toAscList $ keysOf rel
+    putStrLn "Normal Forms:"
+    putStrLn $ "1NF: " ++ show (is1NF rel) ++ "   2NF: " ++ show (is2NF rel)
+    putStrLn $ "3NF: " ++ show (is3NF rel) ++ "   BCNF: " ++ show (isBCNF rel)
+
+editCommands :: M.Map String (String -> Relation -> Namespace -> IO Namespace)
+editCommands = M.fromList [("a",addFDs),("r",removeFDs),("d",decompose),("e",eraseRel),("rn",renameRel),("c",const $ const return)]
+
+editRelation :: Namespace -> IO Namespace
+editRelation namespace = if null namespace then do
+    putStrLn "No relations to edit! Load some first!"
+    return namespace
+else do
+    selected <- getUserRelation namespace
+    editSelectedRelation namespace selected
+
+editSelectedRelation :: Namespace -> (String,Relation) -> IO Namespace
+editSelectedRelation namespace (name,rel) = do
+    i <- getUserInput "Please choose an action [a to add FDs, r to remove FDs, d to decompose, e to erase relation, rn to rename relation, c to cancel]: "
+    case M.lookup i editCommands of
+        (Just fn) -> fn name rel namespace
+        Nothing -> do
+            putStrLn $ "Unknown command '" ++ i ++ "', please use a listed option!"
+            editSelectedRelation namespace (name,rel)
+
+addFDs :: String -> Relation -> Namespace -> IO Namespace
+addFDs name relation namespace = do
+    i <- getUserInput "Please list all new FDs to add to the relation!"
+    case parse (many1 (try fd)) "" i of
+        (Left err) -> do
+            putStrLn $ "Error parsing your input: " ++ show err
+            return namespace
+        (Right fds) -> do
+            putStrLn $ "Added your FDs to relation '" ++ name ++ "'!"
+            return $ M.adjust (\(Rel sch oldFDs) -> Rel sch (S.union oldFDs $ S.fromList fds)) name namespace
+
+removeFDs :: String -> Relation -> Namespace -> IO Namespace
+removeFDs = undefined -- todo later :(
+
+renameRel :: String -> Relation -> Namespace -> IO Namespace
+renameRel oldName relation namespace = newName relation (M.delete oldName namespace)
+
+decomposeCommands :: M.Map String (Relation -> [Relation])
+decomposeCommands = M.fromList [("2NF",decompose2NF),("3NF",decompose3NF),("BCNF",decomposeBCNF),("c",return)]
+
+decompose :: String -> Relation -> Namespace -> IO Namespace
+decompose name relation namespace = do
+    i <- getUserInput "Select decomposition mode, or c to cancel: "
+    case M.lookup i decomposeCommands of
+        (Just fn) -> do
+            let decomp = fn relation
+            if 1 == length decomp then do
+                putStrLn $ "Relation was already in " ++ i ++ "!"
+                return namespace
+            else
+                return $ foldr (addNewName name) namespace (zip decomp [1..])
+        Nothing -> do
+            putStrLn "Unknown decomposition mode! Use 2NF, 3NF, or BCNF!"
+            decompose name relation namespace
+
+addNewName :: String -> (Relation, Int) -> Namespace -> Namespace
+addNewName origName (rel,num) namespace =
+    let relName = head $ dropWhile (`M.member` namespace) $ iterate (++ "'") $ origName ++ show num
+    in M.insert relName rel namespace
+
+eraseRel :: String -> Relation -> Namespace -> IO Namespace
+eraseRel name _ namespace = do
+    let newNamespace = M.delete name namespace
+    putStrLn $ "Erased relation '" ++ name ++ "'."
+    return newNamespace
+
+
 -- not doing selection because it's a pain in the ass
 -- -- -- -- s <relationName> - select relation
 -- -- -- -- add <L>-><R> - add a FD to the relation (L and R are in the format of the inputFile)
@@ -101,202 +307,3 @@ extract p s = either (error . show) id $ parse p "" s
     --  -> r R1,R2,R3
     --  True
     -- Current Relation: R (This is the outer menu again, theyd have to select lossless again to try a new set)
-
-main :: IO ()
-main = mainLoop M.empty
-
-mainCommands :: M.Map String (M.Map String Relation -> IO (M.Map String Relation))
-mainCommands = M.fromList [("h",printHelp),("i",importData),("l",listRelations),("v",viewRelation),("e",editRelation)]
-
-mainLoop :: M.Map String Relation -> IO ()
-mainLoop namespace = do
-    i <- getUserInput "Select an action: "
-    unless (i == "q") $
-        case M.lookup i mainCommands of
-            (Just fn) -> do
-                mainLoop =<< fn namespace
-            Nothing -> do
-                putStrLn ("Unknown action '" ++ i ++ "', use 'h' for help")
-                mainLoop namespace
-
-getUserInput :: String -> IO String
-getUserInput prompt = do
-    putStr prompt
-    unpack . strip . pack <$> getLine -- OverloadedStrings is not working so this is the workaround
-
-printHelp :: M.Map String Relation -> IO (M.Map String Relation)
-printHelp namespace = do
-    putStrLn "h: help menu"
-    putStrLn "i: import new relations"
-    putStrLn "l: list existing relations"
-    putStrLn "v: view relation details"
-    putStrLn "e: edit existing relation"
-    putStrLn "q: quit this app"
-    return namespace
-
-showRel :: String -> Relation -> IO ()
-showRel name relation = putStrLn $ name ++ show relation
-
-listRelations :: M.Map String Relation -> IO (M.Map String Relation)
-listRelations namespace = do
-    if null namespace then
-        putStrLn "No current relations!"
-    else
-        sequence_ $ M.mapWithKey showRel namespace
-    return namespace
-
-importCommands :: M.Map String (M.Map String Relation -> IO (M.Map String Relation))
-importCommands = M.fromList [("f",loadFromFile),("i",readManualRelation),("c",return)]
-
-importData :: M.Map String Relation -> IO (M.Map String Relation)
-importData namespace = do
-    i <- getUserInput "Select a loading option [f for file, i for input, c to cancel]: "
-    case M.lookup i importCommands of
-        (Just fn) -> fn namespace
-        Nothing -> do
-            putStrLn ("Unknown action '" ++ i ++ "', please use one of the listed options!")
-            importData namespace
-
-loadFromFile :: M.Map String Relation -> IO (M.Map String Relation)
-loadFromFile namespace = do
-    i2 <- getUserInput "Input the file: "
-    contents <- parseFromFile fileParser i2
-    case contents of
-        (Left err) -> do
-            putStrLn $ "Error parsing your input: " ++ show err
-            return namespace
-        (Right list) ->
-            mergeInto list namespace
-
-readManualRelation :: M.Map String Relation -> IO (M.Map String Relation)
-readManualRelation namespace = do
-    i2 <- getUserInput "Input the new relation: "
-    case parse relation "" i2 of
-        (Left err) -> do
-            putStrLn $ "Error parsing your input: " ++ show err
-            return namespace
-        (Right (name,rel)) -> do
-            unless (M.member name namespace) $ putStrLn $ "Successfully imported relation '" ++ name ++ "'!"
-            mergeRel namespace (name,rel)
-
-mergeInto :: [(String, Relation)] -> M.Map String Relation -> IO (M.Map String Relation)
-mergeInto list namespace = do
-    ls <- foldM mergeRel namespace list
-    putStrLn "Successfully loaded in all relations from file!"
-    return ls
-
-mergeRel :: M.Map String Relation -> (String, Relation) -> IO (M.Map String Relation)
-mergeRel namespace (name,rel) = do
-    if M.member name namespace then do
-        putStrLn $ "'" ++ name ++ "' is already in use!"
-        newName rel namespace
-    else
-        return $ M.insert name rel namespace
-
-newName :: Relation -> M.Map String Relation -> IO (M.Map String Relation)
-newName rel namespace = do
-    i <- getUserInput "Please input a new name: "
-    let parsedName = parse ident "" i
-    case parse ident "" i of
-        (Right name) ->
-            if M.member name namespace then do
-                putStrLn $ "'" ++ name ++ "' is already in use!"
-                newName rel namespace
-            else do
-                putStrLn $ "Successfully inserted relation " ++ name ++ "!"
-                return $ M.insert name rel namespace
-        (Left err) -> do
-            putStrLn "Invalid formatting! Names should be one word."
-            newName rel namespace
-
-viewRelation :: M.Map String Relation -> IO (M.Map String Relation)
-viewRelation namespace = do
-    if null namespace then do
-        putStrLn "No relations known! Load some first!"
-        return namespace
-    else do
-        (name,rel) <- getUserRelation namespace
-        showDetails name rel
-        return namespace
-
-getUserRelation :: M.Map String Relation -> IO (String,Relation)
-getUserRelation namespace = do
-    i <- getUserInput "Please input the name of the relation: "
-    case M.lookup i namespace of
-        (Just rel) -> do
-            return (i,rel)
-        Nothing -> do
-            putStrLn $ "Unknown name '" ++ i ++ "', please specify an existing name! Known relations are"
-            listRelations namespace
-            getUserRelation namespace
-
-showDetails :: String -> Relation -> IO ()
-showDetails name rel = do
-    print rel
-    putStr $ "Keys of " ++ name ++ ": "
-    print $ map S.toAscList $ S.toAscList $ keysOf rel
-    putStrLn "Normal Forms:"
-    putStrLn $ "1NF: " ++ show (is1NF rel) ++ "   2NF: " ++ show (is2NF rel)
-    putStrLn $ "3NF: " ++ show (is3NF rel) ++ "   BCNF: " ++ show (isBCNF rel)
-
-editCommands :: M.Map String (String -> Relation -> M.Map String Relation -> IO (M.Map String Relation))
-editCommands = M.fromList [("a",addFDs),("r",removeFDs),("d",decompose),("c",const $ const return)]
-
-editRelation :: M.Map String Relation -> IO (M.Map String Relation)
-editRelation namespace = do
-    if null namespace then do
-        putStrLn "No relations to edit! Load some first!"
-        return namespace
-    else do
-        selected <- getUserRelation namespace
-        editSelectedRelation namespace selected
-
-editSelectedRelation :: M.Map String Relation -> (String,Relation) -> IO (M.Map String Relation)
-editSelectedRelation namespace (name,rel) = do
-    i <- getUserInput "Please choose an action [a to add FDs, r to remove FDs, d to decompose, c to cancel]: "
-    case M.lookup i editCommands of
-        (Just fn) -> fn name rel namespace
-        Nothing -> do
-            putStrLn $ "Unknown command '" ++ i ++ "', please use a listed option!"
-            editSelectedRelation namespace (name,rel)
-
-addFDs :: String -> Relation -> M.Map String Relation -> IO (M.Map String Relation)
-addFDs name relation namespace = do
-    i <- getUserInput "Please list all new FDs to add to the relation!"
-    case parse (many1 (try fd)) "" i of
-        (Left err) -> do
-            putStrLn $ "Error parsing your input: " ++ show err
-            return namespace
-        (Right fds) -> do
-            putStrLn $ "Added your FDs to relation '" ++ name ++ "'!"
-            return $ M.adjust (\(Rel sch oldFDs) -> Rel sch (S.union oldFDs $ S.fromList fds)) name namespace
-
-removeFDs :: String -> Relation -> M.Map String Relation -> IO (M.Map String Relation)
-removeFDs = undefined -- todo later :(
-
-renameRel :: String -> Relation -> M.Map String Relation -> IO (M.Map String Relation)
-renameRel oldName relation namespace = newName relation (M.delete oldName namespace)
-
-decomposeCommands :: M.Map String (Relation -> [Relation])
-decomposeCommands = M.fromList [("2NF",decompose2NF),("3NF",decompose3NF),("BCNF",decomposeBCNF),("c",return)]
-
-decompose :: String -> Relation -> M.Map String Relation -> IO (M.Map String Relation)
-decompose name relation namespace = do
-    i <- getUserInput "Select decomposition mode, or c to cancel: "
-    case M.lookup i decomposeCommands of
-        (Just fn) -> do
-            let decomp = fn relation
-            if 1 == length decomp then do
-                putStrLn $ "Relation was already in " ++ i ++ "!"
-                return namespace
-            else
-                return $ foldr (addNewName name) namespace (zip decomp [1..])
-        Nothing -> do
-            putStrLn "Unknown decomposition mode! Use 2NF, 3NF, or BCNF!"
-            decompose name relation namespace
-
-addNewName :: String -> (Relation, Int) -> M.Map String Relation -> M.Map String Relation
-addNewName origName (rel,num) namespace =
-    let relName = head $ dropWhile (`M.member` namespace) $ iterate (++ "'") $ origName ++ show num
-    in M.insert relName rel namespace
-

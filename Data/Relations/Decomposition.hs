@@ -6,15 +6,6 @@ import Data.Relations.Dependencies ( fdClosure, inSchema, minimize, keysOf, attr
 import Data.Relations.Normalization ( is3NF, isBCNF, dependencyIsBCNF, dependencyIs2NF )
 
 
--- Get all supersets of a subset (as in, given set (A,B,C) and attribute A, return ((A), (A,B), (A,C), (A,B,C)))
-lhsPowerSet :: S.Set FunctionalDependency -> Schema -> S.Set (S.Set Attribute)
-lhsPowerSet = undefined
-
--- Compute the closure of all LHS' of FDs
-lhsClosure :: Relation -> Cover
-lhsClosure r@(Rel sch fds) = S.map (\s -> To s (attrClosure r s)) (lhsPowerSet fds sch)
-
-
 splitDependencyInto2NF :: Relation -> FunctionalDependency  -> [Relation]
 splitDependencyInto2NF rel@(Rel s f) fd@(l `To` r)  = let leftClose = attrClosure rel l
     in [projectDependencies f (S.union (S.difference s leftClose) l), projectDependencies f leftClose]
