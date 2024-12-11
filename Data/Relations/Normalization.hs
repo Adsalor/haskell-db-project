@@ -4,7 +4,10 @@ import Data.Relations ( Relation (Rel), Attribute, FunctionalDependency (To))
 import Data.Relations.Dependencies ( keysOf, isSuperkey, isTrivial, isKey )
 import Data.Set qualified as S
 
--- Check if relation is in 1F
+-- Check if relation is in 1NF
+-- this is a bit silly to add
+-- but if a relation is expressible in our format
+-- it has to be in 1NF
 is1NF :: Relation -> Bool
 is1NF = const True
 

@@ -20,7 +20,7 @@ import Data.Map qualified as M
 import Control.Monad (unless, foldM, ap, zipWithM_)
 import Data.Either (partitionEithers)
 
--- Parsing
+-- Parsing --
 
 lexer = makeTokenParser $ emptyDef {
     commentLine = "--",
@@ -63,7 +63,7 @@ fileParser = do
     eof
     return x
 
--- temporary parsing utility
+-- utility for testing
 extract :: Parser a -> String -> a
 extract p s = either (error . show) id $ parse p "" s
 
@@ -73,12 +73,16 @@ extract p s = either (error . show) id $ parse p "" s
 
 type Namespace = M.Map String Relation
 
+-- entry point to the program
+-- initializes the main loop with an empty namespace
 main :: IO ()
 main = mainLoop M.empty
 
+-- list of commands for the main menu
 mainCommands :: M.Map String (Namespace -> IO Namespace)
 mainCommands = M.fromList [("h",printHelp),("i",importData),("l",listRelations),("v",viewRelation),("e",editRelation),("c",decompCheck)]
 
+-- the main program menu
 mainLoop :: Namespace -> IO ()
 mainLoop namespace = do
     i <- getUserInput "Select an action: "
@@ -89,11 +93,13 @@ mainLoop namespace = do
                 putStrLn $ "Unknown action '" ++ i ++ "', use 'h' for help."
                 mainLoop namespace
 
+-- prompt the user and then clean and return their input
 getUserInput :: String -> IO String
 getUserInput prompt = do
     putStr prompt
     unpack . strip . pack <$> getLine -- OverloadedStrings is not working so this is the workaround
 
+-- display a help menu
 printHelp :: Namespace -> IO Namespace
 printHelp namespace = do
     putStrLn "h: help menu"
@@ -105,9 +111,11 @@ printHelp namespace = do
     putStrLn "q: quit this app"
     return namespace
 
+-- display a named relation
 showRel :: String -> Relation -> IO ()
 showRel name relation = putStrLn $ name ++ show relation
 
+-- list all relations
 listRelations :: Namespace -> IO Namespace
 listRelations namespace = do
     if null namespace then
@@ -116,9 +124,11 @@ listRelations namespace = do
         sequence_ $ M.mapWithKey showRel namespace
     return namespace
 
+-- list of commands for the import submenu
 importCommands :: M.Map String (Namespace -> IO Namespace)
 importCommands = M.fromList [("f",loadFromFile),("i",readManualRelation),("c",return)]
 
+-- importing data can happen by file or by manual entry
 importData :: Namespace -> IO Namespace
 importData namespace = do
     i <- getUserInput "Select a loading option [f for file, i for input, c to cancel]: "
@@ -128,6 +138,8 @@ importData namespace = do
             putStrLn $ "Unknown action '" ++ i ++ "', please use one of the listed options!"
             importData namespace
 
+-- load in data from a file
+-- if necessary, prompt the user to resolve namespace conflicts
 loadFromFile :: Namespace -> IO Namespace
 loadFromFile namespace = do
     i2 <- getUserInput "Input the filename: "
@@ -139,6 +151,7 @@ loadFromFile namespace = do
         (Right list) ->
             mergeInto list namespace
 
+-- parse user input, and prompt them to resolve namespace conflicts if needed
 readManualRelation :: Namespace -> IO Namespace
 readManualRelation namespace = do
     i2 <- getUserInput "Input the new relation: "
@@ -150,19 +163,22 @@ readManualRelation namespace = do
             unless (M.member name namespace) $ putStrLn $ "Successfully imported relation '" ++ name ++ "'!"
             mergeRel namespace (name,rel)
 
+-- merge a list of imported relations into the namespace
+-- prompt the user to resolve conflicts as needed
 mergeInto :: [(String, Relation)] -> Namespace -> IO Namespace
 mergeInto list namespace = do
     ls <- foldM mergeRel namespace list
     putStrLn "Successfully loaded in all relations from file!"
     return ls
 
+-- merge a single relation into the namespace by getting new names if needed
 mergeRel :: Namespace -> (String, Relation) -> IO Namespace
 mergeRel namespace (name,rel) = if M.member name namespace then do
         putStrLn $ "'" ++ name ++ "' is already in use!"
         newName rel namespace
-    else
-        return $ M.insert name rel namespace
+    else return $ M.insert name rel namespace
 
+-- get a new name from the user for a relation and place it into the namespace with the new name
 newName :: Relation -> Namespace -> IO Namespace
 newName rel namespace = do
     i <- getUserInput "Please input a new name: "
@@ -179,6 +195,9 @@ newName rel namespace = do
             putStrLn "Invalid formatting! Names should be one word."
             newName rel namespace
 
+-- view details of a specific relation
+-- this function serves as a way to ensure the user does not get softlocked
+-- by guaranteeing they have relations before entering the actual details menu
 viewRelation :: Namespace -> IO Namespace
 viewRelation namespace = do
     if null namespace then putStrLn "No relations known! Load some first!"
@@ -187,6 +206,9 @@ viewRelation namespace = do
         showDetails name rel
     return namespace
 
+-- prompt the user to select a relation and go until they specify a valid name
+-- if this function is called with an empty namespace it will softlock the user
+-- so check that the namespace is nonempty first
 getUserRelation :: Namespace -> IO (String,Relation)
 getUserRelation namespace = do
     i <- getUserInput "Please input the name of the relation: "
@@ -197,9 +219,11 @@ getUserRelation namespace = do
             listRelations namespace
             getUserRelation namespace
 
+-- list of commands for the detailed view submenu
 viewCommands :: M.Map String (String -> Relation -> IO ())
 viewCommands = M.fromList [("a",showAll),("n",showNormalForm),("k",showKeys),("c",showClosure)]
 
+-- prompt the user for a view subcommand and respond to it
 showDetails :: String -> Relation -> IO ()
 showDetails name rel = do
     i <- getUserInput "Select your desired details [a for all, n for normal forms, k for keys, c for attribute closure]: "
@@ -209,23 +233,31 @@ showDetails name rel = do
             putStrLn $ "Unknown action '" ++ i ++ "', please use one of the listed options!"
             showDetails name rel
 
+-- show all details of a relation: name/schema, keys, normal forms
 showAll :: String -> Relation -> IO ()
 showAll name rel = do
     showRel name rel
     showKeys name rel
     showNormalForm name rel
 
+-- show normal forms of a relation
 showNormalForm :: String -> Relation -> IO ()
 showNormalForm name rel = do
     putStrLn $ "Normal Forms of " ++ name ++ ":"
     putStrLn $ "1NF: " ++ show (is1NF rel) ++ "   2NF: " ++ show (is2NF rel)
     putStrLn $ "3NF: " ++ show (is3NF rel) ++ "   BCNF: " ++ show (isBCNF rel)
 
+-- show keys of a relation
+-- this is a bit lazy in that it uses the List show instance
+-- instead of anything prettier
 showKeys :: String -> Relation -> IO ()
 showKeys name rel = do
     putStr $ "Keys of " ++ name ++ ": "
     print $ map S.toAscList $ S.toAscList $ keysOf rel
 
+-- prompt the user for multiple sets of attributes they want the closure of
+-- then display the closures
+-- if there are unknown attributes in their input respond to that as well
 showClosure :: String -> Relation -> IO ()
 showClosure name rel@(Rel sch _) = do
     showRel name rel
@@ -239,17 +271,21 @@ showClosure name rel@(Rel sch _) = do
             else do
                 putStrLn $ "Unknown attributes " ++ show (S.toList unknowns) ++ " in input!"
 
+-- list of commands for the edit submenu
 editCommands :: M.Map String (String -> Relation -> Namespace -> IO Namespace)
 editCommands = M.fromList [("a",addFDs),("r",removeFDs),("m",minimizeRel),("d",decompose),("e",eraseRel),("rn",renameRel),("c",const $ const return)]
 
+-- entry point for the edit submenu
+-- similarly to viewRelation, this serves as a guard against softlocks
 editRelation :: Namespace -> IO Namespace
 editRelation namespace = if null namespace then do
         putStrLn "No relations to edit! Load some first!"
         return namespace
     else do
-        selected <- getUserRelation namespace
-        editSelectedRelation namespace selected
+        editSelectedRelation namespace =<< getUserRelation namespace
 
+-- once the user has selected a relation, prompt them for the editing command
+-- and respond appropriately
 editSelectedRelation :: Namespace -> (String,Relation) -> IO Namespace
 editSelectedRelation namespace (name,rel) = do
     putStrLn "[a to add FDs, r to remove FDs, m to minimize FDs, d to decompose, e to erase relation, rn to rename relation, c to cancel]"
@@ -260,6 +296,9 @@ editSelectedRelation namespace (name,rel) = do
             putStrLn $ "Unknown command '" ++ i ++ "', please use a listed option!"
             editSelectedRelation namespace (name,rel)
 
+-- prompt the user for FDs to add to an existing relation
+-- uses set union semantics, but combines as neatly as possible
+-- so impossible to have both A->B and A->BC after adding
 addFDs :: String -> Relation -> Namespace -> IO Namespace
 addFDs name relation namespace = do
     i <- getUserInput "Please list all new FDs to add to the relation: "
@@ -271,6 +310,10 @@ addFDs name relation namespace = do
             putStrLn $ "Added your FDs to relation '" ++ name ++ "'!"
             return $ M.adjust (\(Rel sch oldFDs) -> Rel sch (combineBasis $ S.union oldFDs $ S.fromList fds)) name namespace
 
+-- prompt the user to remove FDs from a relation
+-- similarly to addFDs, this uses set semantics
+-- if a relation contains A->BC and the user removes A->B,
+-- the relation will be left with A->C
 removeFDs :: String -> Relation -> Namespace -> IO Namespace
 removeFDs name relation namespace = do
     i <- getUserInput "Please list all FDs you want to remove: "
@@ -282,14 +325,19 @@ removeFDs name relation namespace = do
             putStrLn $ "Added your FDs to relation '" ++ name ++ "'!"
             return $ M.adjust (\(Rel sch oldFDs) -> Rel sch (combineBasis $ S.difference (toBasis oldFDs) $ toBasis $ S.fromList fds)) name namespace
 
+-- minimize the relation the user input
+-- note that this is purely for convenience as in all cases the non-minimized basis
+-- carries the same meaning
 minimizeRel :: String -> Relation -> Namespace -> IO Namespace
 minimizeRel name _ namespace = do
     putStrLn $ "Minimized FDs of relation '" ++ name ++ "'!"
     return $ M.adjust (\(Rel sch fds) -> Rel sch $ combineBasis $ minimize fds) name namespace
 
+-- rename a relation and insert the new name into the namespace
 renameRel :: String -> Relation -> Namespace -> IO Namespace
 renameRel oldName relation namespace = newName relation (M.delete oldName namespace)
 
+-- list of decomposition modes
 decomposeCommands :: M.Map String (String -> Relation -> Namespace -> IO Namespace)
 decomposeCommands = M.fromList [
     ("input",decomposeArbitrary),
@@ -298,6 +346,8 @@ decomposeCommands = M.fromList [
     ("BCNF",liftDecomposition decomposeBCNF),
     ("c",const $ const return)]
 
+-- allow the user to list an arbitrary decomposition to decompose to
+-- they can input any names, but namespace conflicts will be resolved late in insertion
 decomposeArbitrary :: String -> Relation -> Namespace -> IO Namespace
 decomposeArbitrary name rel@(Rel sch fds) namespace = do
     i <- getUserInput "Please list the relations to decompose into: "
@@ -314,24 +364,9 @@ decomposeArbitrary name rel@(Rel sch fds) namespace = do
                 putStrLn $ "Unknown attributes " ++ show (S.toList unknowns) ++ " in input!"
                 return namespace
 
-liftDecomposition :: (Relation -> [Relation]) -> String -> Relation -> Namespace -> IO Namespace
-liftDecomposition fn name rel namespace = do
-    let decomp = fn rel
-    if 1 == length decomp then do
-        putStrLn $ name ++ " was already in that normal form!"
-        return namespace
-    else
-        foldM (addNewName name) namespace (zip decomp [1..])
-
-decompose :: String -> Relation -> Namespace -> IO Namespace
-decompose name relation namespace = do
-    i <- getUserInput "Select decomposition mode, or c to cancel: "
-    case M.lookup i decomposeCommands of
-        (Just fn) -> fn name relation namespace
-        Nothing -> do
-            putStrLn "Unknown decomposition mode! Use input, 2NF, 3NF, or BCNF!"
-            decompose name relation namespace
-
+-- add a decomposed relation to the namespace by prompting the user to replace the old name
+-- and reacting accordingly
+-- the initially generated name is guaranteed to be unique, but not necessarily good
 addNewName :: String -> Namespace -> (Relation, Int) -> IO Namespace
 addNewName origName namespace (rel,num) = do
     let relName = head $ dropWhile (`M.member` namespace) $ iterate (++ "'") $ origName ++ show num
@@ -342,6 +377,30 @@ addNewName origName namespace (rel,num) = do
     else
         return $ M.insert relName rel namespace
 
+-- lift a pure decomposition function into an IO action
+-- generates initial names for the decomposed relations 
+-- and prompts the user to rename them one-by-one
+-- renamed decomposed relations are added to the namespace
+liftDecomposition :: (Relation -> [Relation]) -> String -> Relation -> Namespace -> IO Namespace
+liftDecomposition fn name rel namespace = do
+    let decomp = fn rel
+    if 1 == length decomp then do
+        putStrLn $ name ++ " was already in that normal form!"
+        return namespace
+    else
+        foldM (addNewName name) namespace (zip decomp [1..])
+
+-- look up the user's decomposition mode and respond accordingly
+decompose :: String -> Relation -> Namespace -> IO Namespace
+decompose name relation namespace = do
+    i <- getUserInput "Select decomposition mode, or c to cancel: "
+    case M.lookup i decomposeCommands of
+        (Just fn) -> fn name relation namespace
+        Nothing -> do
+            putStrLn "Unknown decomposition mode! Use input, 2NF, 3NF, or BCNF!"
+            decompose name relation namespace
+
+-- erase a relation from the namespace
 eraseRel :: String -> Relation -> Namespace -> IO Namespace
 eraseRel name _ namespace = do
     let newNamespace = M.delete name namespace
@@ -350,12 +409,16 @@ eraseRel name _ namespace = do
 
 -- Decomposition check 
 
+-- lifts a Maybe into an Either where the Left is function input
+-- frankly I'm surprised some function-agnostic version of this isn't
+-- already an Either combinator
 retrieveFrom :: Namespace -> String -> Either String Relation
 retrieveFrom namespace name =
     case M.lookup name namespace of
         (Just x) -> Right x
         Nothing -> Left name
 
+-- allow the user to list names in a decomposition and then check properties of the decomposition
 decompCheck :: Namespace -> IO Namespace
 decompCheck namespace = do
     (name,rel) <- getUserRelation namespace
