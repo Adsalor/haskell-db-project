@@ -2,7 +2,7 @@ module Data.Relations.Decomposition where
 import Data.List
 import Data.Set qualified as S
 import Data.Relations ( Relation (Rel), Attribute (Attr), Cover, Schema, leftSide, rightSide, FunctionalDependency (To))
-import Data.Relations.Dependencies ( fdClosure, inSchema, minimize, keysOf, attrClosure, toBasis, minimize )
+import Data.Relations.Dependencies ( fdClosure, inSchema, minimize, keysOf, attrClosure, toBasis, minimize, combineBasis )
 import Data.Relations.Normalization ( is3NF, isBCNF, dependencyIsBCNF, dependencyIs2NF )
 
 
@@ -97,14 +97,14 @@ getAttributesOnRight fd@(l `To` r) (a:as) = S.member a r : getAttributesOnRight 
 changeRows :: [Bool] -> [Bool] -> [Bool] -> [[Attribute]] -> Relation -> FunctionalDependency -> [[Attribute]]
 changeRows [] _ _ _ _ _ = []
 changeRows left@(b:bs) right both (cb:cbs) r@(Rel s f) fd =
-    if length (filter (== True) left) > 1
-        then (changeRow b (getAttributesOnRight fd (S.toList s)) cb (S.toList s)) : changeRows bs right both cbs r fd
+    if length (filter id left) > 1
+        then changeRow b (getAttributesOnRight fd (S.toList s)) cb (S.toList s) : changeRows bs right both cbs r fd
     else cb:cbs
 
 
 chase :: [[Attribute]] -> [FunctionalDependency] -> Relation -> [FunctionalDependency] -> [[Attribute]]
 chase cb [] _ _ = cb
-chase cb ((f@(l `To` r)):fs) rel allFds =
+chase cb (f@(l `To` r):fs) rel allFds =
     let
     left = map (S.isSubsetOf l . S.fromList) cb -- Boolean list of if each row has the lefthand values of the FD subscriptless
     right = map (S.isSubsetOf r . S.fromList) cb
@@ -115,7 +115,7 @@ chase cb ((f@(l `To` r)):fs) rel allFds =
     else chase new allFds rel allFds
 
 allSubscriptless :: [[Attribute]] -> [Attribute] -> Bool
-allSubscriptless cb s = any (== s) cb
+allSubscriptless cb s = s `elem` cb
 
 -- Takes an original relation and a decomposition of the relation and
 -- checks if the decomposition is lossless
@@ -133,7 +133,7 @@ isDependencyPreserving rel@(Rel s f) rels =
 -- onto that schema
 -- *** Currently uses fdClosure, change to lhsClosure once that is implemented
 projectDependencies :: Cover -> Schema -> Relation
-projectDependencies c sch = Rel sch (minimize (S.filter (inSchema sch) (toBasis (fdClosure (Rel sch c)))))
+projectDependencies c sch = Rel sch (combineBasis $ minimize (S.filter (inSchema sch) (toBasis (fdClosure (Rel sch c)))))
 
 -- Project FDs from a relation onto a set of schemas.
 projectRelation :: Relation -> [Schema] -> [Relation]

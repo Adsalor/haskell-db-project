@@ -129,9 +129,9 @@ combineBasis fds = S.map (ap To (S.unions . S.map rightSide . (`S.filter` fds) .
 
 -- the below definition was rejected by Kana
 -- comment: "i dont respect foldrs"
--- (<:) :: (t1 -> t1 -> t2) -> (t3 -> t1) -> t3 -> t3 -> t2
--- (f <: g) a b = f (g a) (g b)
+-- on :: (t1 -> t1 -> t2) -> (t3 -> t1) -> t3 -> t3 -> t2
+-- on f g a b = f (g a) (g b)
 
 -- combineBasis' :: Cover -> Cover
 -- combineBasis' fds = 
---     S.fromAscList $ map (foldr1 (liftM2 (.) (To . leftSide) (S.union <: rightSide))) $ groupBy ((==) <: leftSide) $ S.toAscList fds
+--     S.fromAscList $ map (foldr1 (liftM2 (.) (To . leftSide) (S.union `on` rightSide))) $ groupBy ((==) `on` leftSide) $ S.toAscList fds

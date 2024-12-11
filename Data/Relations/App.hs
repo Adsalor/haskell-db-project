@@ -1,8 +1,8 @@
 module Data.Relations.App where
 
 import Data.Relations
-import Data.Relations.Dependencies ( keysOf )
-import Data.Relations.Decomposition ( decompose2NF, decompose3NF, decomposeBCNF )
+import Data.Relations.Dependencies ( keysOf, combineBasis, toBasis, minimize, attrClosure )
+import Data.Relations.Decomposition ( decompose2NF, decompose3NF, decomposeBCNF, projectDependencies, isLossless, isDependencyPreserving )
 import Data.Relations.Normalization ( is1NF, is2NF, is3NF, isBCNF )
 
 
@@ -17,7 +17,8 @@ import Text.Parsec.Language (emptyDef)
 import Data.Set qualified as S
 import Data.Map qualified as M
 
-import Control.Monad (unless, foldM, join)
+import Control.Monad (unless, foldM, ap, zipWithM_)
+import Data.Either (partitionEithers)
 
 -- Parsing
 
@@ -33,8 +34,8 @@ sym = symbol lexer
 wsp :: Parser ()
 wsp = whiteSpace lexer
 
-name :: Parser (String,Schema)
-name = do
+schema :: Parser (String,Schema)
+schema = do
     rel <- ident
     sym "("
     attrs <- ident `sepBy1` sym ","
@@ -52,7 +53,7 @@ fd = do
 
 relation :: Parser (String,Relation)
 relation = do
-    (id,sch) <- name
+    (id,sch) <- schema
     fds <- many (try fd)
     return (id,Rel sch (S.fromList fds))
 
@@ -76,7 +77,7 @@ main :: IO ()
 main = mainLoop M.empty
 
 mainCommands :: M.Map String (Namespace -> IO Namespace)
-mainCommands = M.fromList [("h",printHelp),("i",importData),("l",listRelations),("v",viewRelation),("e",editRelation)]
+mainCommands = M.fromList [("h",printHelp),("i",importData),("l",listRelations),("v",viewRelation),("e",editRelation),("c",decompCheck)]
 
 mainLoop :: Namespace -> IO ()
 mainLoop namespace = do
@@ -100,6 +101,7 @@ printHelp namespace = do
     putStrLn "l: list existing relations"
     putStrLn "v: view relation details"
     putStrLn "e: edit existing relation"
+    putStrLn "c: check decomposition properties"
     putStrLn "q: quit this app"
     return namespace
 
@@ -156,10 +158,10 @@ mergeInto list namespace = do
 
 mergeRel :: Namespace -> (String, Relation) -> IO Namespace
 mergeRel namespace (name,rel) = if M.member name namespace then do
-    putStrLn $ "'" ++ name ++ "' is already in use!"
-    newName rel namespace
-else
-    return $ M.insert name rel namespace
+        putStrLn $ "'" ++ name ++ "' is already in use!"
+        newName rel namespace
+    else
+        return $ M.insert name rel namespace
 
 newName :: Relation -> Namespace -> IO Namespace
 newName rel namespace = do
@@ -178,12 +180,11 @@ newName rel namespace = do
             newName rel namespace
 
 viewRelation :: Namespace -> IO Namespace
-viewRelation namespace = if null namespace then do
-    putStrLn "No relations known! Load some first!"
-    return namespace
-else do
-    (name,rel) <- getUserRelation namespace
-    showDetails name rel
+viewRelation namespace = do
+    if null namespace then putStrLn "No relations known! Load some first!"
+    else do
+        (name,rel) <- getUserRelation namespace
+        showDetails name rel
     return namespace
 
 getUserRelation :: Namespace -> IO (String,Relation)
@@ -196,29 +197,63 @@ getUserRelation namespace = do
             listRelations namespace
             getUserRelation namespace
 
+viewCommands :: M.Map String (String -> Relation -> IO ())
+viewCommands = M.fromList [("a",showAll),("n",showNormalForm),("k",showKeys),("c",showClosure)]
+
 showDetails :: String -> Relation -> IO ()
 showDetails name rel = do
-    print rel
-    putStr $ "Keys of " ++ name ++ ": "
-    print $ map S.toAscList $ S.toAscList $ keysOf rel
-    putStrLn "Normal Forms:"
+    i <- getUserInput "Select your desired details [a for all, n for normal forms, k for keys, c for attribute closure]: "
+    case M.lookup i viewCommands of
+        (Just fn) -> fn name rel
+        Nothing -> do
+            putStrLn $ "Unknown action '" ++ i ++ "', please use one of the listed options!"
+            showDetails name rel
+
+showAll :: String -> Relation -> IO ()
+showAll name rel = do
+    showRel name rel
+    showKeys name rel
+    showNormalForm name rel
+
+showNormalForm :: String -> Relation -> IO ()
+showNormalForm name rel = do
+    putStrLn $ "Normal Forms of " ++ name ++ ":"
     putStrLn $ "1NF: " ++ show (is1NF rel) ++ "   2NF: " ++ show (is2NF rel)
     putStrLn $ "3NF: " ++ show (is3NF rel) ++ "   BCNF: " ++ show (isBCNF rel)
 
+showKeys :: String -> Relation -> IO ()
+showKeys name rel = do
+    putStr $ "Keys of " ++ name ++ ": "
+    print $ map S.toAscList $ S.toAscList $ keysOf rel
+
+showClosure :: String -> Relation -> IO ()
+showClosure name rel@(Rel sch _) = do
+    showRel name rel
+    i <- getUserInput "Please list all attribute sets you want the closures of: "
+    case parse (many1 (S.fromList . map Attr <$> (ident `sepBy1` sym ","))) "" i of
+        (Left err) -> putStrLn $ "Error parsing your input: " ++ show err
+        (Right attrs) -> do
+            let unknowns = S.unions $ map (S.filter (`notElem` sch)) attrs
+            if null unknowns then
+                mapM_ (print . ap To (attrClosure rel)) attrs
+            else do
+                putStrLn $ "Unknown attributes " ++ show (S.toList unknowns) ++ " in input!"
+
 editCommands :: M.Map String (String -> Relation -> Namespace -> IO Namespace)
-editCommands = M.fromList [("a",addFDs),("r",removeFDs),("d",decompose),("e",eraseRel),("rn",renameRel),("c",const $ const return)]
+editCommands = M.fromList [("a",addFDs),("r",removeFDs),("m",minimizeRel),("d",decompose),("e",eraseRel),("rn",renameRel),("c",const $ const return)]
 
 editRelation :: Namespace -> IO Namespace
 editRelation namespace = if null namespace then do
-    putStrLn "No relations to edit! Load some first!"
-    return namespace
-else do
-    selected <- getUserRelation namespace
-    editSelectedRelation namespace selected
+        putStrLn "No relations to edit! Load some first!"
+        return namespace
+    else do
+        selected <- getUserRelation namespace
+        editSelectedRelation namespace selected
 
 editSelectedRelation :: Namespace -> (String,Relation) -> IO Namespace
 editSelectedRelation namespace (name,rel) = do
-    i <- getUserInput "Please choose an action [a to add FDs, r to remove FDs, d to decompose, e to erase relation, rn to rename relation, c to cancel]: "
+    putStrLn "[a to add FDs, r to remove FDs, m to minimize FDs, d to decompose, e to erase relation, rn to rename relation, c to cancel]"
+    i <- getUserInput "Please choose an action: "
     case M.lookup i editCommands of
         (Just fn) -> fn name rel namespace
         Nothing -> do
@@ -234,36 +269,78 @@ addFDs name relation namespace = do
             return namespace
         (Right fds) -> do
             putStrLn $ "Added your FDs to relation '" ++ name ++ "'!"
-            return $ M.adjust (\(Rel sch oldFDs) -> Rel sch (S.union oldFDs $ S.fromList fds)) name namespace
+            return $ M.adjust (\(Rel sch oldFDs) -> Rel sch (combineBasis $ S.union oldFDs $ S.fromList fds)) name namespace
 
 removeFDs :: String -> Relation -> Namespace -> IO Namespace
-removeFDs = undefined -- todo later :(
+removeFDs name relation namespace = do
+    i <- getUserInput "Please list all FDs you want to remove: "
+    case parse (many1 (try fd)) "" i of
+        (Left err) -> do
+            putStrLn $ "Error parsing your input: " ++ show err
+            return namespace
+        (Right fds) -> do
+            putStrLn $ "Added your FDs to relation '" ++ name ++ "'!"
+            return $ M.adjust (\(Rel sch oldFDs) -> Rel sch (combineBasis $ S.difference (toBasis oldFDs) $ toBasis $ S.fromList fds)) name namespace
+
+minimizeRel :: String -> Relation -> Namespace -> IO Namespace
+minimizeRel name _ namespace = do
+    putStrLn $ "Minimized FDs of relation '" ++ name ++ "'!"
+    return $ M.adjust (\(Rel sch fds) -> Rel sch $ combineBasis $ minimize fds) name namespace
 
 renameRel :: String -> Relation -> Namespace -> IO Namespace
 renameRel oldName relation namespace = newName relation (M.delete oldName namespace)
 
-decomposeCommands :: M.Map String (Relation -> [Relation])
-decomposeCommands = M.fromList [("2NF",decompose2NF),("3NF",decompose3NF),("BCNF",decomposeBCNF),("c",return)]
+decomposeCommands :: M.Map String (String -> Relation -> Namespace -> IO Namespace)
+decomposeCommands = M.fromList [
+    ("input",decomposeArbitrary),
+    ("2NF",liftDecomposition decompose2NF),
+    ("3NF",liftDecomposition decompose3NF),
+    ("BCNF",liftDecomposition decomposeBCNF),
+    ("c",const $ const return)]
+
+decomposeArbitrary :: String -> Relation -> Namespace -> IO Namespace
+decomposeArbitrary name rel@(Rel sch fds) namespace = do
+    i <- getUserInput "Please list the relations to decompose into: "
+    case parse (many1 schema) "" i of
+        (Left err) -> do
+            putStrLn $ "Error parsing your input: " ++ show err
+            return namespace
+        (Right schs) -> do
+            let unknowns = S.unions $ map (S.filter (`notElem` sch) . snd) schs
+            if null unknowns then do
+                let projected = map (fmap $ projectDependencies fds) schs
+                mergeInto projected namespace
+            else do
+                putStrLn $ "Unknown attributes " ++ show (S.toList unknowns) ++ " in input!"
+                return namespace
+
+liftDecomposition :: (Relation -> [Relation]) -> String -> Relation -> Namespace -> IO Namespace
+liftDecomposition fn name rel namespace = do
+    let decomp = fn rel
+    if 1 == length decomp then do
+        putStrLn $ name ++ " was already in that normal form!"
+        return namespace
+    else
+        foldM (addNewName name) namespace (zip decomp [1..])
 
 decompose :: String -> Relation -> Namespace -> IO Namespace
 decompose name relation namespace = do
     i <- getUserInput "Select decomposition mode, or c to cancel: "
     case M.lookup i decomposeCommands of
-        (Just fn) -> do
-            let decomp = fn relation
-            if 1 == length decomp then do
-                unless (i == "c") $ putStrLn $ "Relation was already in " ++ i ++ "!"
-                return namespace
-            else
-                return $ foldr (addNewName name) namespace (zip decomp [1..])
+        (Just fn) -> fn name relation namespace
         Nothing -> do
-            putStrLn "Unknown decomposition mode! Use 2NF, 3NF, or BCNF!"
+            putStrLn "Unknown decomposition mode! Use input, 2NF, 3NF, or BCNF!"
             decompose name relation namespace
 
-addNewName :: String -> (Relation, Int) -> Namespace -> Namespace
-addNewName origName (rel,num) namespace =
+addNewName :: String -> Namespace -> (Relation, Int) -> IO Namespace
+addNewName origName namespace (rel,num) = do
     let relName = head $ dropWhile (`M.member` namespace) $ iterate (++ "'") $ origName ++ show num
-    in M.insert relName rel namespace
+    showRel relName rel
+    i <- getUserInput $ "Rename " ++ relName ++ "? [y/n]: "
+    if i == "y" then
+        newName rel namespace
+    else
+        return $ M.insert relName rel namespace
 
 eraseRel :: String -> Relation -> Namespace -> IO Namespace
 eraseRel name _ namespace = do
@@ -271,39 +348,30 @@ eraseRel name _ namespace = do
     putStrLn $ "Erased relation '" ++ name ++ "'."
     return newNamespace
 
+-- Decomposition check 
 
--- not doing selection because it's a pain in the ass
--- -- -- -- s <relationName> - select relation
--- -- -- -- add <L>-><R> - add a FD to the relation (L and R are in the format of the inputFile)
--- -- -- -- remove <L>-><R> - remove a FD to the relation if it exists
--- -- -- -- check <decompType> - check if currently selected relation follows a normal form
-    -- decompType is '1NF' '2NF' '3NF' 'BCNF'
-    -- if no normal form is specified, list all normal forms the selected relation follows
--- decomp <decompType> - decompose selected relation into a normal form
-    -- should add the decomposed relations to the environment i imagine
--- min - display the minimal basis of the selected relation
--- closure <list of attributes> - give the closure of the list of attributes in the selected relation
+retrieveFrom :: Namespace -> String -> Either String Relation
+retrieveFrom namespace name =
+    case M.lookup name namespace of
+        (Just x) -> Right x
+        Nothing -> Left name
 
--- is decomposition <Decomposition> - Given a list of relations in the form of <Name>(<Attributes>) separated by commas, create the relations in the decomposition (including projected relations)
-    -- Ex - decomposition R1(A,B),R2(C,E),R3(A,D)
--- lossless - check if a set of relations is a lossless decomposition of the selected relation
--- preserving - check if a set of relations is a dependency preserving decompositon of the selected relations
-
-
--- I think the way things like checking if a set of relations is a lossless decomposition of another could work like this
-    -- I think theres probably a better way to go about this part so if you have suggestions lmk
-    -- You call the command with the non-decomposed relation selected, then it prompts you to a second menu
-    -- This menu only has the ability to list all relations, select relations to add to the decomposition set, or cancel
-    -- so for example something like
-
-    -- Current Relation: R
-    --  -> lossless (the arrow is just what im imagining to demonstrate that its taking user input)
-    -- Choose what relations make up the decomposition of R: select h for help
-    --  -> h
-    --  h - List of commands
-    --  db - List all relation names and schemas (maybe limit it to ones that have a subset of the attributes so that its not cluttering with relations that obviously cant be part of the decomp?)
-    --  r <Relations> - Select relations to make up the decomposition of R, these should be the names of the relations separated with commas and no spaces
-    --  c - Cancel operation
-    --  -> r R1,R2,R3
-    --  True
-    -- Current Relation: R (This is the outer menu again, theyd have to select lossless again to try a new set)
+decompCheck :: Namespace -> IO Namespace
+decompCheck namespace = do
+    (name,rel) <- getUserRelation namespace
+    rs <- getUserInput "Please list the names of relations in the decomposition: "
+    case parse (many1 ident) "" rs of
+        (Left err) -> do
+            putStrLn $ "Error parsing your input: " ++ show err
+        (Right rs) -> do
+            let (unknowns,knowns) = partitionEithers $ map (retrieveFrom namespace) rs
+            if null unknowns then do
+                putStr "Original: "
+                showRel name rel
+                putStrLn "Decomposited: "
+                zipWithM_ showRel rs knowns
+                putStrLn $ "Lossless? " ++ show (isLossless rel knowns)
+                putStrLn $ "Dependency preserving? " ++ show (isDependencyPreserving rel knowns)
+            else do
+                putStrLn $ "Unknown relations '" ++ unwords unknowns ++ "' in your input"
+    return namespace
