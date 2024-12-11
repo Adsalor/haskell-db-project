@@ -8,7 +8,8 @@ module Data.Relations.Dependencies (
 import Data.Relations ( Relation (Rel), Cover, FunctionalDependency (To), Attribute, Schema, leftSide, rightSide )
 import Data.Set qualified as S
 import Control.Monad.State qualified as ST
-import Control.Monad (when, foldM, ap)
+import Control.Monad (when, foldM, liftM2)
+import Data.List (groupBy)
 
 splitFD :: FunctionalDependency -> S.Set FunctionalDependency
 splitFD (To lhs rhs) = S.map (To lhs . S.singleton) rhs
@@ -120,18 +121,8 @@ minimize fds = let
     purgeTrivialLHS = foldr recRemLHSF purgeTrivial purgeTrivial
     in purgeTrivialLHS
 
--- making awful pointfree crap is my way of coping with the tedium of writing algorithms
--- please let me have this
--- given a basis, recombine it into a cover
+on :: (t1 -> t1 -> t2) -> (t3 -> t1) -> t3 -> t3 -> t2
+on f g a b = f (g a) (g b)
+
 combineBasis :: Cover -> Cover
-combineBasis fds = S.map (ap To (S.unions . S.map rightSide . (`S.filter` fds) . (. leftSide) . (==)) . leftSide) fds
-
-
--- the below definition was rejected by Kana
--- comment: "i dont respect foldrs"
--- on :: (t1 -> t1 -> t2) -> (t3 -> t1) -> t3 -> t3 -> t2
--- on f g a b = f (g a) (g b)
-
--- combineBasis' :: Cover -> Cover
--- combineBasis' fds = 
---     S.fromAscList $ map (foldr1 (liftM2 (.) (To . leftSide) (S.union `on` rightSide))) $ groupBy ((==) `on` leftSide) $ S.toAscList fds
+combineBasis = S.fromAscList . map (liftM2 To (leftSide . head) (S.unions . map rightSide)) . groupBy ((==) `on` leftSide) . S.toAscList
