@@ -41,10 +41,7 @@ instance Show FunctionalDependency where
 type Cover = S.Set FunctionalDependency
 
 isBasis :: Cover -> Bool
-isBasis = all rhs1
-    where
-        rhs1 :: FunctionalDependency -> Bool
-        rhs1 (To l r) = S.size r == 1
+isBasis = all ((1 ==) . S.size . rightSide)
 
 -- Relations --
 

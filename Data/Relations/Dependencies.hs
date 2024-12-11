@@ -1,10 +1,11 @@
-module Data.Relations.Dependencies 
+module Data.Relations.Dependencies
     (toBasis,isTrivial,attrClosure,isSuperkey,isKey,keysOf,fdClosure,inClosure,inSchema,isMinimal,minimize,combineBasis) where
 
 import Data.Relations ( Relation (Rel), Cover, FunctionalDependency (To), Attribute, Schema, leftSide, rightSide )
 import Data.Set qualified as S
+import Data.List (groupBy)
 import Control.Monad.State qualified as ST
-import Control.Monad (when, foldM, ap)
+import Control.Monad (when, foldM, ap, liftM2)
 
 splitFD :: FunctionalDependency -> S.Set FunctionalDependency
 splitFD (To lhs rhs) = S.map (To lhs . S.singleton) rhs
@@ -121,3 +122,10 @@ minimize fds = let
 -- given a basis, recombine it into a cover
 combineBasis :: Cover -> Cover
 combineBasis fds = S.map (ap To (S.unions . S.map rightSide . (`S.filter` fds) . (. leftSide) . (==)) . leftSide) fds
+
+(<:) :: (t1 -> t1 -> t2) -> (t3 -> t1) -> t3 -> t3 -> t2
+(f <: g) a b = f (g a) (g b)
+
+combineBasis' :: Cover -> Cover
+combineBasis' fds = 
+    S.fromAscList $ map (foldr1 (liftM2 (.) (To . leftSide) (S.union <: rightSide))) $ groupBy ((==) <: leftSide) $ S.toAscList fds
