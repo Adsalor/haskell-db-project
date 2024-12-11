@@ -1,9 +1,9 @@
 module Data.Relations.App where
 
 import Data.Relations
-import Data.Relations.Dependencies
-import Data.Relations.Decomposition
-import Data.Relations.Normalization
+import Data.Relations.Dependencies ( keysOf )
+import Data.Relations.Decomposition ( decompose2NF, decompose3NF, decomposeBCNF )
+import Data.Relations.Normalization ( is1NF, is2NF, is3NF, isBCNF )
 
 
 import Data.Text (strip, pack, unpack)
@@ -128,7 +128,7 @@ importData namespace = do
 
 loadFromFile :: Namespace -> IO Namespace
 loadFromFile namespace = do
-    i2 <- getUserInput "Input the file: "
+    i2 <- getUserInput "Input the filename: "
     contents <- parseFromFile fileParser i2
     case contents of
         (Left err) -> do

@@ -1,11 +1,14 @@
-module Data.Relations.Dependencies
-    (toBasis,isTrivial,attrClosure,isSuperkey,isKey,keysOf,fdClosure,inClosure,inSchema,isMinimal,minimize,combineBasis) where
+module Data.Relations.Dependencies (
+    toBasis,combineBasis,
+    isTrivial,inSchema,
+    isSuperkey,isKey,keysOf,
+    attrClosure,fdClosure,inClosure,
+    isMinimal,minimize) where
 
 import Data.Relations ( Relation (Rel), Cover, FunctionalDependency (To), Attribute, Schema, leftSide, rightSide )
 import Data.Set qualified as S
-import Data.List (groupBy)
 import Control.Monad.State qualified as ST
-import Control.Monad (when, foldM, ap, liftM2)
+import Control.Monad (when, foldM, ap)
 
 splitFD :: FunctionalDependency -> S.Set FunctionalDependency
 splitFD (To lhs rhs) = S.map (To lhs . S.singleton) rhs
@@ -123,9 +126,12 @@ minimize fds = let
 combineBasis :: Cover -> Cover
 combineBasis fds = S.map (ap To (S.unions . S.map rightSide . (`S.filter` fds) . (. leftSide) . (==)) . leftSide) fds
 
-(<:) :: (t1 -> t1 -> t2) -> (t3 -> t1) -> t3 -> t3 -> t2
-(f <: g) a b = f (g a) (g b)
 
-combineBasis' :: Cover -> Cover
-combineBasis' fds = 
-    S.fromAscList $ map (foldr1 (liftM2 (.) (To . leftSide) (S.union <: rightSide))) $ groupBy ((==) <: leftSide) $ S.toAscList fds
+-- the below definition was rejected by Kana
+-- comment: "i dont respect foldrs"
+-- (<:) :: (t1 -> t1 -> t2) -> (t3 -> t1) -> t3 -> t3 -> t2
+-- (f <: g) a b = f (g a) (g b)
+
+-- combineBasis' :: Cover -> Cover
+-- combineBasis' fds = 
+--     S.fromAscList $ map (foldr1 (liftM2 (.) (To . leftSide) (S.union <: rightSide))) $ groupBy ((==) <: leftSide) $ S.toAscList fds
