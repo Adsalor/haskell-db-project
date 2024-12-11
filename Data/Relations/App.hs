@@ -227,7 +227,7 @@ editSelectedRelation namespace (name,rel) = do
 
 addFDs :: String -> Relation -> Namespace -> IO Namespace
 addFDs name relation namespace = do
-    i <- getUserInput "Please list all new FDs to add to the relation!"
+    i <- getUserInput "Please list all new FDs to add to the relation: "
     case parse (many1 (try fd)) "" i of
         (Left err) -> do
             putStrLn $ "Error parsing your input: " ++ show err
@@ -252,7 +252,7 @@ decompose name relation namespace = do
         (Just fn) -> do
             let decomp = fn relation
             if 1 == length decomp then do
-                putStrLn $ "Relation was already in " ++ i ++ "!"
+                unless (i == "c") $ putStrLn $ "Relation was already in " ++ i ++ "!"
                 return namespace
             else
                 return $ foldr (addNewName name) namespace (zip decomp [1..])
