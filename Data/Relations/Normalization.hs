@@ -12,6 +12,7 @@ is1NF = const True
 primeAttributes :: Relation -> S.Set Attribute
 primeAttributes r = S.unions (keysOf r)
 
+-- Check if a dependency violates 2NF
 dependencyIs2NF :: Relation -> FunctionalDependency -> Bool
 dependencyIs2NF rel f@(l `To` r) = isTrivial f 
     || (let pa = primeAttributes rel in 
@@ -23,6 +24,7 @@ is2NF :: Relation -> Bool
 is2NF r@(Rel s f) = let pa = primeAttributes r
                     in all (dependencyIs2NF r) f
 
+-- Check if a dependency violates 3NF
 dependencyIs3NF :: S.Set Attribute -> Relation -> FunctionalDependency -> Bool
 dependencyIs3NF pa rel f@(l `To` r) = isTrivial f || isSuperkey rel l || S.isSubsetOf r pa
 
@@ -31,6 +33,7 @@ is3NF :: Relation -> Bool
 is3NF r@(Rel s f) = let pa = primeAttributes r
                     in all (dependencyIs3NF pa r) f
 
+-- Check if a dependency violates BCNF
 dependencyIsBCNF :: Relation -> FunctionalDependency -> Bool
 dependencyIsBCNF k f@(l `To` r) = isTrivial f || isSuperkey k l
 
