@@ -50,10 +50,10 @@ verifyRelation :: Relation -> Bool
 verifyRelation (Rel schema fds) = all (check schema) fds
     where
         check :: Schema -> FunctionalDependency -> Bool
-        check schema (To lhs rhs) = S.union lhs rhs `S.isSubsetOf` schema
+        check sch (To lhs rhs) = S.union lhs rhs `S.isSubsetOf` sch
 
 instance Show Relation where
-    show (Rel s c) = show (S.toAscList s) ++ ": " ++ display c
+    show (Rel s f) = show (S.toAscList s) ++ ": " ++ display f
         where
             wrap x = "(" ++ x ++ ")"
             display c = wrap (intercalate " | " (map show $ S.toAscList c))

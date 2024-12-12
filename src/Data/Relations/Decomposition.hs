@@ -3,15 +3,9 @@ module Data.Relations.Decomposition (
     projectDependencies, isLossless, isDependencyPreserving) where
 
 import qualified Data.Set as S
-import Data.Relations ( Relation (Rel), Attribute (Attr), Cover, Schema, FunctionalDependency (To, leftSide))
+import Data.Relations ( Relation (Rel), Attribute (Attr), Cover, Schema, FunctionalDependency (To, leftSide), attributesOf)
 import Data.Relations.Dependencies ( fdClosure, inSchema, minimize, keysOf, attrClosure, toBasis, minimize, combineBasis )
 import Data.Relations.Normalization ( is3NF, dependencyIsBCNF, dependencyIs2NF )
-
--- Given a dependency that violates 2NF, create 2 relations based on that dependency that follow 2NF
--- splitDependencyInto2NF :: Relation -> FunctionalDependency  -> [Relation]
--- splitDependencyInto2NF rel@(Rel s f) fd@(l `To` r)  = let leftClose = attrClosure rel l
---     in [projectDependencies f (S.union (S.difference s leftClose) l), projectDependencies f leftClose]
-
 
 -- Decompose a relation to a list of relations following
 -- second normal form
@@ -19,17 +13,15 @@ decompose2NF :: Relation -> [Relation]
 decompose2NF rel@(Rel s f) = let
     notIn2NF = S.filter (not . dependencyIs2NF rel) f
     closures = S.map (attrClosure rel . leftSide) notIn2NF
-    leftSides = S.unions (S.map (\f@(l `To` r) -> l) notIn2NF)
-    notInDependency = S.difference s (S.unions (S.map (\f@(l `To` r) -> S.union l r) f))
+    leftSides = S.unions (S.map leftSide notIn2NF)
+    notInDependency = S.difference s (S.unions (S.map attributesOf f))
     notInFDAndLeftSides = S.union notInDependency leftSides
     in projectDependencies f notInFDAndLeftSides : map (projectDependencies f) (S.toList closures)
 
 -- Create a relation where the schema are the attributes in a functional dependency
 -- And the dependencies are projected from an original relation
 fdToRelation :: Relation -> FunctionalDependency -> Relation
-fdToRelation r@(Rel sch fds) fd@(To lhs rhs) =
-    let s = S.union lhs rhs
-    in projectDependencies fds s
+fdToRelation (Rel _ fds) fd = projectDependencies fds $ attributesOf fd
 
 -- Add a relation containing the attributes of the key to the 3NF decomp, if necessary
 addKey :: Relation -> [Relation] -> [Relation]
@@ -57,8 +49,7 @@ removeSubsets rs = let
 decompose3NF :: Relation -> [Relation]
 decompose3NF r@(Rel sch fds)
     | is3NF r = [r]
-    | otherwise = let minBasis = minimize fds in
-        removeSubsets (addKey r (map (fdToRelation r) (S.toList fds)))
+    | otherwise = removeSubsets (addKey r (map (fdToRelation r) (S.toList fds)))
 
 -- Perform a step of the BCNF decomp on a given FD X->Y
 decomposeOn :: Relation -> FunctionalDependency -> [Relation]

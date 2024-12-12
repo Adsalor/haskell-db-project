@@ -40,7 +40,7 @@ canApply attrs (To lhs _) = lhs `S.isSubsetOf` attrs
 
 -- attempts to apply a single FD to a set of attributes
 applyFD :: FunctionalDependency -> S.Set Attribute -> S.Set Attribute
-applyFD fd@(To lhs rhs) attrs = if attrs `canApply` fd then S.union rhs attrs else rhs
+applyFD fd@(To _ rhs) attrs = if attrs `canApply` fd then S.union rhs attrs else rhs
 
 -- recursively computes attribute closure in a set of FDs by applying all applicable FDs
 recAttrClosure :: S.Set FunctionalDependency -> S.Set Attribute -> S.Set Attribute
@@ -49,11 +49,11 @@ recAttrClosure fds attrs = let (applicable,nonapplicable) = S.partition (canAppl
 
 -- Compute the closure of a set of attributes within a given relation
 attrClosure :: Relation -> S.Set Attribute -> S.Set Attribute
-attrClosure (Rel sch fds) = recAttrClosure fds
+attrClosure (Rel _ fds) = recAttrClosure fds
 
 -- check if an attribute set is a superkey of a relation
 isSuperkey :: Relation -> S.Set Attribute -> Bool
-isSuperkey rel@(Rel sch fds) attrs = attrClosure rel attrs == sch
+isSuperkey rel@(Rel sch _) attrs = attrClosure rel attrs == sch
 
 -- check if an attribute set is a key of a relation
 isKey :: Relation -> S.Set Attribute -> Bool
@@ -85,7 +85,7 @@ keysOf r@(Rel sch fds) =
 -- note that this is provided in absolutely maximal form
 -- and should not be used in practice unless strictly necessary
 fdClosure :: Relation -> Cover
-fdClosure r@(Rel sch fds) = S.map (ap To (attrClosure r)) (S.powerSet sch)
+fdClosure r@(Rel sch _) = S.map (ap To (attrClosure r)) (S.powerSet sch)
 
 -- check if a specific FD is implied by a cover
 inClosure :: Cover -> FunctionalDependency -> Bool
@@ -103,7 +103,7 @@ isMinimal fds = let
     allLHSNeeded = all (lhsNeeded basis) basis
         where
             lhsNeeded :: Cover -> FunctionalDependency -> Bool
-            lhsNeeded fds (To lhs rhs) = not $ any (inClosure fds . (`To` rhs) . (`S.delete` lhs)) lhs
+            lhsNeeded fds' (To lhs rhs) = not $ any (inClosure fds' . (`To` rhs) . (`S.delete` lhs)) lhs
     in allNeeded && allLHSNeeded
 
 -- the state here is the new FDs
@@ -119,7 +119,7 @@ remTrivialF originals fd@(To lhs _) = do
 -- remove left hand side attributes from FDs in a fold
 -- basically just replaces the old with the new
 remLHSF :: FunctionalDependency -> Cover ->  Cover
-remLHSF fd@(To lhs rhs) cover = S.insert reducedFD (S.delete fd cover)
+remLHSF fd@(To lhs _) cover = S.insert reducedFD (S.delete fd cover)
     where reducedFD = ST.evalState (foldM remLHF fd lhs) cover
 
 -- state here is FDs pre-editing this FD

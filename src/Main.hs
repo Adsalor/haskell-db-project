@@ -7,7 +7,6 @@ import Data.Relations.Normalization ( is1NF, is2NF, is3NF, isBCNF )
 
 
 import Data.Text (strip, pack, unpack)
-import Data.Char (isSpace)
 
 import Text.Parsec
 import Text.Parsec.String
@@ -117,7 +116,7 @@ printHelp namespace = do
 
 -- display a named relation
 showRel :: String -> Relation -> IO ()
-showRel name relation = putStrLn $ name ++ show relation
+showRel name rel = putStrLn $ name ++ show rel
 
 -- list all relations
 listRelations :: Namespace -> IO Namespace
@@ -186,7 +185,6 @@ mergeRel namespace (name,rel) = if M.member name namespace then do
 newName :: Relation -> Namespace -> IO Namespace
 newName rel namespace = do
     i <- getUserInput "Please input a new name: "
-    let parsedName = parse ident "" i
     case parse ident "" i of
         (Right name) ->
             if M.member name namespace then do
@@ -195,7 +193,7 @@ newName rel namespace = do
             else do
                 putStrLn $ "Successfully inserted relation " ++ name ++ "!"
                 return $ M.insert name rel namespace
-        (Left err) -> do
+        (Left _) -> do
             putStrLn "Invalid formatting! Names should be one word."
             newName rel namespace
 
@@ -304,7 +302,7 @@ editSelectedRelation namespace (name,rel) = do
 -- uses set union semantics, but combines as neatly as possible
 -- so impossible to have both A->B and A->BC after adding
 addFDs :: String -> Relation -> Namespace -> IO Namespace
-addFDs name relation namespace = do
+addFDs name _ namespace = do
     i <- getUserInput "Please list all new FDs to add to the relation: "
     case parse (many1 (try fd)) "" i of
         (Left err) -> do
@@ -319,7 +317,7 @@ addFDs name relation namespace = do
 -- if a relation contains A->BC and the user removes A->B,
 -- the relation will be left with A->C
 removeFDs :: String -> Relation -> Namespace -> IO Namespace
-removeFDs name relation namespace = do
+removeFDs name _ namespace = do
     i <- getUserInput "Please list all FDs you want to remove: "
     case parse (many1 (try fd)) "" i of
         (Left err) -> do
@@ -339,7 +337,7 @@ minimizeRel name _ namespace = do
 
 -- rename a relation and insert the new name into the namespace
 renameRel :: String -> Relation -> Namespace -> IO Namespace
-renameRel oldName relation namespace = newName relation (M.delete oldName namespace)
+renameRel oldName rel namespace = newName rel (M.delete oldName namespace)
 
 -- list of decomposition modes
 decomposeCommands :: M.Map String (String -> Relation -> Namespace -> IO Namespace)
@@ -353,7 +351,7 @@ decomposeCommands = M.fromList [
 -- allow the user to list an arbitrary decomposition to decompose to
 -- they can input any names, but namespace conflicts will be resolved late in insertion
 decomposeArbitrary :: String -> Relation -> Namespace -> IO Namespace
-decomposeArbitrary name rel@(Rel sch fds) namespace = do
+decomposeArbitrary _ (Rel sch fds) namespace = do
     i <- getUserInput "Please list the relations to decompose into: "
     case parse (many1 schema) "" i of
         (Left err) -> do
@@ -396,13 +394,13 @@ liftDecomposition fn name rel namespace = do
 
 -- look up the user's decomposition mode and respond accordingly
 decompose :: String -> Relation -> Namespace -> IO Namespace
-decompose name relation namespace = do
+decompose name rel namespace = do
     i <- getUserInput "Select decomposition mode, or c to cancel: "
     case M.lookup i decomposeCommands of
-        (Just fn) -> fn name relation namespace
+        (Just fn) -> fn name rel namespace
         Nothing -> do
             putStrLn "Unknown decomposition mode! Use input, 2NF, 3NF, or BCNF!"
-            decompose name relation namespace
+            decompose name rel namespace
 
 -- erase a relation from the namespace
 eraseRel :: String -> Relation -> Namespace -> IO Namespace
@@ -430,13 +428,13 @@ decompCheck namespace = do
     case parse (many1 ident) "" rs of
         (Left err) -> do
             putStrLn $ "Error parsing your input: " ++ show err
-        (Right rs) -> do
-            let (unknowns,knowns) = partitionEithers $ map (retrieveFrom namespace) rs
+        (Right rels) -> do
+            let (unknowns,knowns) = partitionEithers $ map (retrieveFrom namespace) rels
             if null unknowns then do
                 putStr "Original: "
                 showRel name rel
                 putStrLn "Decomposited: "
-                zipWithM_ showRel rs knowns
+                zipWithM_ showRel rels knowns
                 putStrLn $ "Lossless? " ++ show (isLossless rel knowns)
                 putStrLn $ "Dependency preserving? " ++ show (isDependencyPreserving rel knowns)
             else do
