@@ -1,5 +1,4 @@
 ## DB-Relations
-======
 
 DB-Relations is a relational database theory library written in Haskell. It focuses on implementing
 datatypes and algorithms important in the theory of database normalization - that is, reducing
