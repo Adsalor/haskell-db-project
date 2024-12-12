@@ -1,4 +1,4 @@
-module Data.Relations.Decomposition where
+module Data.Relations.Decomposition (decompose2NF, decompose3NF, decomposeBCNF, projectDependencies, isLossless, isDependencyPreserving) where
 import Data.List
 import Data.Set qualified as S
 import Data.Relations ( Relation (Rel), Attribute (Attr), Cover, Schema, leftSide, rightSide, FunctionalDependency (To))

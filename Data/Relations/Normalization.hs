@@ -1,4 +1,4 @@
-module Data.Relations.Normalization where 
+module Data.Relations.Normalization (is1NF, primeAttributes, is2NF, is3NF, isBCNF, dependencyIs2NF, dependencyIsBCNF)where 
 
 import Data.Relations ( Relation (Rel), Attribute, FunctionalDependency (To))
 import Data.Relations.Dependencies ( keysOf, isSuperkey, isTrivial, isKey )
