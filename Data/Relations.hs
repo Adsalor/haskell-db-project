@@ -10,20 +10,14 @@ newtype Attribute = Attr { str :: String } deriving (Ord, Eq)
 instance Show Attribute where
     show = str
 
--- Schema --
+-- Schemata --
 
 type Schema = S.Set Attribute
 
 -- Functional Dependencies --
 
-data FunctionalDependency = To (S.Set Attribute) (S.Set Attribute)
+data FunctionalDependency = To { leftSide :: S.Set Attribute, rightSide :: S.Set Attribute }
     deriving (Ord,Eq)
-
-leftSide :: FunctionalDependency -> S.Set Attribute
-leftSide (To lhs _) = lhs
-
-rightSide :: FunctionalDependency -> S.Set Attribute
-rightSide (To _ rhs) = rhs
 
 attributesOf :: FunctionalDependency -> S.Set Attribute
 attributesOf x = S.union (leftSide x) (rightSide x)
@@ -40,6 +34,8 @@ instance Show FunctionalDependency where
 
 type Cover = S.Set FunctionalDependency
 
+-- returns whether a given cover is also a basis: whether
+-- it only contains FDs with one attribute on their right side
 isBasis :: Cover -> Bool
 isBasis = all ((1 ==) . S.size . rightSide)
 
@@ -48,6 +44,8 @@ isBasis = all ((1 ==) . S.size . rightSide)
 data Relation = Rel Schema Cover
     deriving (Eq)
 
+-- verifies a Relation meets its representation invariant - that is,
+-- each FD in the relation's cover only uses attributes of the relation
 verifyRelation :: Relation -> Bool
 verifyRelation (Rel schema fds) = all (check schema) fds
     where

@@ -4,9 +4,11 @@ import Data.Set qualified as S
 
 import Data.Relations
 import Data.Relations.Dependencies
-import Data.Relations.Normalization
+    ( isTrivial, isSuperkey, isKey, keysOf )
+import Data.Relations.Normalization ( is3NF, isBCNF )
 import Data.Relations.Decomposition
-import Data.Relations.App
+    ( decompose3NF, decomposeBCNF, isLossless, isDependencyPreserving )
+import Data.Relations.App ( fd, relation, extract )
 
 r1parsed = snd $ extract relation "R1(A,B,C,D,E,F) A->B,C D->E,F"
 r2parsed = snd $ extract relation "R2(A,B,C,D,E,F) A,B->C F->B"
@@ -22,17 +24,17 @@ r3 = Rel (S.fromAscList $ map Attr ["A", "B", "C"]) $
     S.insert (S.singleton (Attr "A") `To` S.singleton (Attr "B")) $
     S.insert (S.singleton (Attr "B") `To` S.singleton (Attr "A")) S.empty
 
-s = snd $ Data.Relations.App.extract Data.Relations.App.relation "S(A,B,C,D,E,F,G) A->B,C A,C->D,E B->G C,D->E,F A,C,F->G A,F->E"
-s1 = snd $ Data.Relations.App.extract Data.Relations.App.relation "S1(A,B,D,G)"
-s2 = snd $ Data.Relations.App.extract Data.Relations.App.relation "S2(A,C,D,F)"
-s3 = snd $ Data.Relations.App.extract Data.Relations.App.relation "S3(C,D,E)"
-s4 = snd $ Data.Relations.App.extract Data.Relations.App.relation "S4(B,C,E,G)"
+s = snd $ extract relation "S(A,B,C,D,E,F,G) A->B,C A,C->D,E B->G C,D->E,F A,C,F->G A,F->E"
+s1 = snd $ extract relation "S1(A,B,D,G)"
+s2 = snd $ extract relation "S2(A,C,D,F)"
+s3 = snd $ extract relation "S3(C,D,E)"
+s4 = snd $ extract relation "S4(B,C,E,G)"
 
-t = snd $ Data.Relations.App.extract Data.Relations.App.relation "R(A,B,C,D,E,F,G) A->B,G A,D->B,F B->C B,C->F,G A,C,G->E A,B->C,E D,E->F,G"
-t1 = snd $ Data.Relations.App.extract Data.Relations.App.relation "R1(B,D,G)"
-t2 = snd $ Data.Relations.App.extract Data.Relations.App.relation "R2(A,B,C,D,F)"
-t3 = snd $ Data.Relations.App.extract Data.Relations.App.relation "R3(B,F)"
-t4 = snd $ Data.Relations.App.extract Data.Relations.App.relation "R4(B,C,E,G)"
+t = snd $ extract relation "R(A,B,C,D,E,F,G) A->B,G A,D->B,F B->C B,C->F,G A,C,G->E A,B->C,E D,E->F,G"
+t1 = snd $ extract relation "R1(B,D,G)"
+t2 = snd $ extract relation "R2(A,B,C,D,F)"
+t3 = snd $ extract relation "R3(B,F)"
+t4 = snd $ extract relation "R4(B,C,E,G)"
 
 -- R1(A,B,C) F1 = {A -> BC}
 -- R2(D,E,F) F2 = {D -> EF}
@@ -57,7 +59,7 @@ r3is3NF = is3NF r3
 r3isBCNF = isBCNF r3
 
 sDecompIsLossless = isLossless s [s1,s2,s3,s4]
-tDecompIsLossy = isLossless s [t1,t2,t3,t4]
+tDecompIsLossy = not $ isLossless s [t1,t2,t3,t4]
 
 
 -- [A,D,E,F]
