@@ -1,6 +1,6 @@
 module Data.Relations where
 
-import Data.Set qualified as S
+import qualified Data.Set as S
 import Data.List (intercalate)
 
 -- Attributes --

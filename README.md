@@ -21,8 +21,8 @@ and sample input file. These are located under Data.Relations.App and Data.Testi
 
 # Getting Started
 
-The library is dependent on the cabal packages `mtl` and `containers`. 
-In addition, the app requires `parsec` and `text` be installed.
+The library is dependent on the packages `mtl` and `containers`. 
+In addition, the app requires `parsec` and `text` are installed.
 
 Make sure that your project repository contains a README.md. It should briefly 
 describe the main components and the order in which we should look at them as well as list 

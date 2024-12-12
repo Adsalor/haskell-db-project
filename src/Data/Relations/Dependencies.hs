@@ -7,8 +7,8 @@ module Data.Relations.Dependencies (
     isMinimal, minimize ) where
 
 import Data.Relations ( Relation (Rel), Cover, FunctionalDependency (To), Attribute, Schema, leftSide, rightSide, attributesOf )
-import Data.Set qualified as S
-import Control.Monad.State qualified as ST
+import qualified Data.Set as S
+import qualified Control.Monad.State as ST
 import Control.Monad ( when, foldM, liftM2, ap )
 import Data.List ( groupBy )
 import Data.Function ( on )

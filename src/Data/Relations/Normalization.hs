@@ -1,8 +1,11 @@
-module Data.Relations.Normalization (is1NF, primeAttributes, is2NF, is3NF, isBCNF, dependencyIs2NF, dependencyIsBCNF)where 
+module Data.Relations.Normalization (
+    primeAttributes,
+    is1NF, is2NF, is3NF, isBCNF, 
+    dependencyIs2NF, dependencyIsBCNF) where 
 
 import Data.Relations ( Relation (Rel), Attribute, FunctionalDependency (To))
 import Data.Relations.Dependencies ( keysOf, isSuperkey, isTrivial, isKey )
-import Data.Set qualified as S
+import qualified Data.Set as S
 
 -- Check if relation is in 1NF
 -- this is a bit silly to add

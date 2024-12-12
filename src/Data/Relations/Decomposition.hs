@@ -1,14 +1,16 @@
-module Data.Relations.Decomposition (decompose2NF, decompose3NF, decomposeBCNF, projectDependencies, isLossless, isDependencyPreserving) where
-import Data.List
-import Data.Set qualified as S
-import Data.Relations ( Relation (Rel), Attribute (Attr), Cover, Schema, leftSide, rightSide, FunctionalDependency (To))
+module Data.Relations.Decomposition (
+    decompose2NF, decompose3NF, decomposeBCNF, 
+    projectDependencies, isLossless, isDependencyPreserving) where
+
+import qualified Data.Set as S
+import Data.Relations ( Relation (Rel), Attribute (Attr), Cover, Schema, FunctionalDependency (To, leftSide))
 import Data.Relations.Dependencies ( fdClosure, inSchema, minimize, keysOf, attrClosure, toBasis, minimize, combineBasis )
-import Data.Relations.Normalization ( is3NF, isBCNF, dependencyIsBCNF, dependencyIs2NF )
+import Data.Relations.Normalization ( is3NF, dependencyIsBCNF, dependencyIs2NF )
 
 -- Given a dependency that violates 2NF, create 2 relations based on that dependency that follow 2NF
-splitDependencyInto2NF :: Relation -> FunctionalDependency  -> [Relation]
-splitDependencyInto2NF rel@(Rel s f) fd@(l `To` r)  = let leftClose = attrClosure rel l
-    in [projectDependencies f (S.union (S.difference s leftClose) l), projectDependencies f leftClose]
+-- splitDependencyInto2NF :: Relation -> FunctionalDependency  -> [Relation]
+-- splitDependencyInto2NF rel@(Rel s f) fd@(l `To` r)  = let leftClose = attrClosure rel l
+--     in [projectDependencies f (S.union (S.difference s leftClose) l), projectDependencies f leftClose]
 
 
 -- Decompose a relation to a list of relations following
@@ -16,8 +18,7 @@ splitDependencyInto2NF rel@(Rel s f) fd@(l `To` r)  = let leftClose = attrClosur
 decompose2NF :: Relation -> [Relation]
 decompose2NF rel@(Rel s f) = let
     notIn2NF = S.filter (not . dependencyIs2NF rel) f
-    in2NF = S.difference f notIn2NF
-    closures = S.map (\f@(l `To` r) -> attrClosure rel l) notIn2NF
+    closures = S.map (attrClosure rel . leftSide) notIn2NF
     leftSides = S.unions (S.map (\f@(l `To` r) -> l) notIn2NF)
     notInDependency = S.difference s (S.unions (S.map (\f@(l `To` r) -> S.union l r) f))
     notInFDAndLeftSides = S.union notInDependency leftSides
@@ -145,7 +146,3 @@ isDependencyPreserving rel@(Rel s f) rels =
 -- onto that schema
 projectDependencies :: Cover -> Schema -> Relation
 projectDependencies c sch = Rel sch (combineBasis $ minimize (S.filter (inSchema sch) (toBasis (fdClosure (Rel sch c)))))
-
--- Project FDs from a relation onto a set of schemas.
-projectRelation :: Relation -> [Schema] -> [Relation]
-projectRelation r@(Rel sch fds) = map (projectDependencies fds)

@@ -1,4 +1,4 @@
-module Data.Relations.App where
+module Main where
 
 import Data.Relations
 import Data.Relations.Dependencies ( keysOf, combineBasis, toBasis, minimize, attrClosure )
@@ -14,11 +14,12 @@ import Text.Parsec.String
 import Text.Parsec.Token
 import Text.Parsec.Language (emptyDef)
 
-import Data.Set qualified as S
-import Data.Map qualified as M
+import qualified Data.Set as S
+import qualified Data.Map as M
 
 import Control.Monad (unless, foldM, ap, zipWithM_)
 import Data.Either (partitionEithers)
+import System.IO (hSetBuffering, stdout, BufferMode (NoBuffering))
 
 -- Parsing --
 
@@ -76,7 +77,10 @@ type Namespace = M.Map String Relation
 -- entry point to the program
 -- initializes the main loop with an empty namespace
 main :: IO ()
-main = mainLoop M.empty
+main = do
+    -- this is suboptimal but I did all testing through ghci so i forgot to put hFlushes in and no time now
+    hSetBuffering stdout NoBuffering
+    mainLoop M.empty
 
 -- list of commands for the main menu
 mainCommands :: M.Map String (Namespace -> IO Namespace)
