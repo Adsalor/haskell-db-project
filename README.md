@@ -24,9 +24,22 @@ and sample input file. These are located under Data.Relations.App and Data.Testi
 The library is dependent on the packages `mtl` and `containers`. 
 In addition, the app requires `parsec` and `text` are installed.
 
-Make sure that your project repository contains a README.md. It should briefly 
-describe the main components and the order in which we should look at them as well as list 
-additional libraries and special instructions for compilation, building and running the project. 
-Add config files listing dependencies, so that it is easy to build and run the project on our end.  
+The project is configured through cabal, so if `cabal` is installed the application
+can be run simply by opening a terminal in the base directory of the app and running
+```cabal run```. 
 
-test
+Alternatively, the app or library functions can be run through ghci. Simply import 
+Data/Relations.hs, Data/Relations/*.hs, and Main.hs. One helpful pattern is
+`rel = snd $ extract relation "R(<attributes>) <fds>"`, which allows for quickly
+defining relations within ghci for testing.
+
+# Application grammars
+
+In general, the application follows a very simple grammar for importing. Relations are listed by
+`<relation> ::= <name>(<attributes>) <fds>`
+where name is a single identifier, `<attributes>` is a comma-separated list of identifiers, 
+and `<fds>` is a whitespace-separated list of `<fd>` instances, where `<fd>` is
+`<fd> ::= <attributes> -> <attributes>`
+For example, "R1(A,B,C,D) A,B->C D->A". The application uses the same general grammar. When a list
+is requested it should be provided in space separated format. This is mainly relevant when adding or 
+removing FDs, or selecting a decomposition.
