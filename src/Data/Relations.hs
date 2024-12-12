@@ -47,10 +47,7 @@ data Relation = Rel Schema Cover
 -- verifies a Relation meets its representation invariant - that is,
 -- each FD in the relation's cover only uses attributes of the relation
 verifyRelation :: Relation -> Bool
-verifyRelation (Rel schema fds) = all (check schema) fds
-    where
-        check :: Schema -> FunctionalDependency -> Bool
-        check sch (To lhs rhs) = S.union lhs rhs `S.isSubsetOf` sch
+verifyRelation (Rel schema fds) = all ((`S.isSubsetOf` schema) . attributesOf) fds
 
 instance Show Relation where
     show (Rel s f) = show (S.toAscList s) ++ ": " ++ display f
