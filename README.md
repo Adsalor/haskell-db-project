@@ -26,12 +26,12 @@ In addition, the app requires `parsec` and `text` are installed.
 
 The project is configured through cabal, so if `cabal` is installed the application
 can be run simply by opening a terminal in the base directory of the app and running
-```cabal run```. 
+```cabal run``` (optionally, use `cabal run -v0` for silent compilation). 
 
-Alternatively, the app or library functions can be run through ghci. Simply import 
-Data/Relations.hs, Data/Relations/*.hs, and Main.hs. One helpful pattern is
-`rel = snd $ extract relation "R(<attributes>) <fds>"`, which allows for quickly
-defining relations within ghci for testing.
+Alternatively, the app or library functions can be run through ghci. Simply load 
+Data/Relations.hs, Data/Relations/*.hs, and Main.hs, and then import the desired modules.
+One helpful pattern is `rel = snd $ extract relation "R(<attributes>) <fds>"`, which allows 
+for quickly defining relations within ghci for testing.
 
 # Application grammars
 

@@ -39,9 +39,6 @@ license-file:       LICENSE
 -- The package author(s).
 author:             Chris McCarthy, Kana Rudnick
 
--- An email address to which users can send suggestions, bug reports, and patches.
--- maintainer:         
-
 -- A copyright notice.
 -- copyright:
 category:           Database
@@ -50,28 +47,13 @@ build-type:         Simple
 -- Extra doc files to be distributed with the package, such as a CHANGELOG or a README.
 extra-doc-files:    README.md
 
--- Extra source files to be distributed with the package, such as examples, or a tutorial module.
--- extra-source-files:
-
--- common warnings
---     ghc-options: -Wall
-
 library
-    -- Import common warning flags.
-    -- import:           warnings
-
     -- Modules exported by the library.
     exposed-modules:  
         Data.Relations
         Data.Relations.Dependencies
         Data.Relations.Normalization
         Data.Relations.Decomposition
-
-    -- Modules included in this library but not exported.
-    -- other-modules:
-
-    -- LANGUAGE extensions used by modules in this package.
-    -- other-extensions:
 
     -- Other library packages from which modules are imported.
     build-depends:    
@@ -86,9 +68,6 @@ library
     default-language: Haskell2010
 
 executable DB-Relations
-    -- Import common warning flags.
-    -- import:           warnings
-
     -- .hs or .lhs file containing the Main module.
     main-is:          Main.hs
 
@@ -98,9 +77,6 @@ executable DB-Relations
         Data.Relations.Dependencies
         Data.Relations.Normalization
         Data.Relations.Decomposition
-
-    -- LANGUAGE extensions used by modules in this package.
-    -- other-extensions:
 
     -- Other library packages from which modules are imported.
     build-depends:
